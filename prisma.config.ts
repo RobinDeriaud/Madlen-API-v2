@@ -8,10 +8,8 @@ export default defineConfig({
   datasource: {
     url: process.env.DATABASE_URL!,
   },
-  migrate: {
-    async adapter() {
-      const pool = new Pool({ connectionString: process.env.DATABASE_URL })
-      return new PrismaPg(pool)
-    },
-  },
+  // the `migrate` property was removed in Prisma v7.4+; migrations
+  // configuration is now handled separately and we don’t need an
+  // adapter here. Keeping a minimal config avoids build errors
+  // during Next.js compilation on the VPS.
 })

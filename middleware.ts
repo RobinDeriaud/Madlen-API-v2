@@ -1,7 +1,9 @@
-import NextAuth from "next-auth"
-import { authConfig } from "@/auth.config"
+// middleware.ts
+// Next 16+ expects a plain function export; avoid destructuring
+// directly from NextAuth here. Instead re‑use the helper from
+// `lib/auth.ts` which already exports `auth`.
 
-export const { auth: middleware } = NextAuth(authConfig)
+export { auth as middleware } from "@/lib/auth"
 
 export const config = {
   matcher: ["/dashboard/:path*"],
