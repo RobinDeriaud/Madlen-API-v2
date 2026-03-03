@@ -2,10 +2,20 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
+const MacroExerciceEnum = z.enum([
+  "AJUSTEMENT_100",
+  "HYGIENE_PHONATOIRE_200",
+  "PRAXIES_300",
+  "RENDEMENT_VOCAL_400",
+  "FLEXIBILITE_VOCALE_500",
+  "INTELLIGIBILITE_600",
+  "FLUENCE_700",
+])
+
 const createSchema = z.object({
   numero: z.number().int().nullable().optional(),
   nom: z.string().nullable().optional(),
-  macro: z.string().nullable().optional(),
+  macro: MacroExerciceEnum.nullable().optional(),
 })
 
 export async function POST(req: Request) {
