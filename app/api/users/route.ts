@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import sql from "@/lib/db"
+import { prisma } from "@/lib/prisma"
 import { createUserSchema } from "@/lib/validate"
 import bcrypt from "bcryptjs"
 
@@ -10,11 +10,10 @@ export async function GET() {
   }
 
   try {
-    const users = await sql`
-      SELECT id, email, role, created_at
-      FROM users
-      ORDER BY created_at DESC
-    `
+    const users = await prisma.adminUser.findMany({
+      select: { id: true, email: true, role: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    })
     return Response.json(users)
   } catch {
     return Response.json({ error: "Internal server error" }, { status: 500 })
@@ -40,18 +39,16 @@ export async function POST(req: Request) {
   }
 
   const { email, password, role } = parsed.data
-  const password_hash = await bcrypt.hash(password, 12)
+  const passwordHash = await bcrypt.hash(password, 12)
 
   try {
-    const [user] = await sql`
-      INSERT INTO users (email, password_hash, role)
-      VALUES (${email}, ${password_hash}, ${role})
-      RETURNING id, email, role, created_at
-    `
+    const user = await prisma.adminUser.create({
+      data: { email, passwordHash, role },
+      select: { id: true, email: true, role: true, createdAt: true },
+    })
     return Response.json(user, { status: 201 })
-  } catch (err: unknown) {
-    const pgError = err as { code?: string }
-    if (pgError?.code === "23505") {
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "P2002") {
       return Response.json({ error: "Email already exists" }, { status: 409 })
     }
     return Response.json({ error: "Internal server error" }, { status: 500 })

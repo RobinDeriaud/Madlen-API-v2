@@ -6,13 +6,22 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:baseline": "prisma migrate resolve --applied 0_init",
+    "db:import-exercices": "node scripts/import-exercices.mjs"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.4.2",
+    "@prisma/client": "^7.4.2",
     "bcryptjs": "^2.4.3",
+    "iconv-lite": "^0.7.2",
     "next": "^16.1.6",
     "next-auth": "^5.0.0-beta.30",
-    "postgres": "^3.4.8",
+    "pg": "^8.19.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "zod": "^3.25.76"
@@ -20,10 +29,12 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.0.0",
+    "@types/pg": "^8.18.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
+    "prisma": "^7.4.2",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5"
   }

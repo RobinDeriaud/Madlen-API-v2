@@ -1,10 +1,12 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
-import sql from "@/lib/db"
+import { prisma } from "@/lib/prisma"
 import { loginSchema } from "@/lib/validate"
+import { authConfig } from "@/auth.config"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -17,22 +19,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { email, password } = parsed.data
 
-        const rows = await sql`
-          SELECT id, email, password_hash, role
-          FROM users
-          WHERE email = ${email}
-          LIMIT 1
-        `
-        const user = rows[0]
+        const user = await prisma.adminUser.findUnique({ where: { email } })
         if (!user) return null
 
-        const valid = await bcrypt.compare(password, user.password_hash as string)
+        const valid = await bcrypt.compare(password, user.passwordHash)
         if (!valid) return null
 
         return {
           id: String(user.id),
-          email: user.email as string,
-          role: user.role as string,
+          email: user.email,
+          role: user.role,
         }
       },
     }),
@@ -53,8 +49,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return session
     },
-  },
-  pages: {
-    signIn: "/login",
   },
 })

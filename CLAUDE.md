@@ -1,8 +1,8 @@
 # Project Configuration for Claude Code
 
 ## Project Overview
-Private admin dashboard with user authentication, built with Next.js and PostgreSQL.
-No existing codebase — this is a fresh project.
+Dashboard d'administration privé avec authentification, construit avec Next.js et PostgreSQL.
+**Remplacement de Strapi** : la structure de la DB est inspirée de l'ancien projet Strapi mais entièrement gérée par Prisma.
 
 ---
 
@@ -11,14 +11,14 @@ No existing codebase — this is a fresh project.
 - **Framework:** Next.js 14+ (App Router)
 - **Language:** TypeScript
 - **Database:** PostgreSQL (already running on the VPS)
-- **DB Client:** `postgres.js` (NOT Prisma — direct SQL with automatic escaping)
+- **DB Client:** Prisma 7 (ORM avec driver adapter `@prisma/adapter-pg` + `pg`)
 - **Auth:** NextAuth.js v5 (credentials provider — email/password)
 - **Validation:** `zod` (all user inputs must be validated before any DB query)
 - **Styling:** Tailwind CSS
 
 ---
 
-## Project Structure to Create
+## Project Structure
 
 ```
 /
@@ -37,20 +37,24 @@ No existing codebase — this is a fresh project.
 │       └── users/
 │           └── route.ts                # Example: GET /api/users, POST /api/users
 ├── lib/
-│   ├── db.ts                           # PostgreSQL connection via postgres.js
+│   ├── db.ts                           # Legacy postgres.js client (kept for reference)
+│   ├── prisma.ts                       # Prisma 7 singleton client (use this)
 │   ├── auth.ts                         # NextAuth config (exported for middleware)
 │   └── validate.ts                     # Zod schemas for input validation
+├── prisma/
+│   ├── schema.prisma                   # Database schema (models)
+│   ├── migrations/                     # Migration history (committed to git)
+│   └── migration_lock.toml
+├── prisma.config.ts                    # Prisma 7 config (driver adapter + migrate)
 ├── middleware.ts                        # Protects /dashboard routes
-├── .env.local                          # Environment variables (see below)
-└── sql/
-    └── init.sql                        # SQL file to manually initialize the DB schema
+└── .env                                # Environment variables (never committed)
 ```
 
 ---
 
 ## Environment Variables
 
-Create `.env.local` with these keys (do NOT commit this file):
+Create `.env` with these keys (do NOT commit this file):
 
 ```
 DATABASE_URL=postgresql://monapp:mot_de_passe@localhost:5432/mabase
@@ -62,17 +66,26 @@ NEXTAUTH_URL=https://yourdomain.com
 
 ## Database Rules
 
-- Use `postgres.js` for all DB access. Import from `@/lib/db.ts`.
-- Always use tagged template literals for queries — never string concatenation:
-  ```ts
-  // CORRECT
-  const result = await sql`SELECT * FROM users WHERE email = ${email}`
-
-  // NEVER DO THIS
-  const result = await sql.unsafe(`SELECT * FROM users WHERE email = '${email}'`)
-  ```
+- Use Prisma for all DB access. Import from `@/lib/prisma.ts`.
+- All queries go through the Prisma client — no raw SQL string concatenation.
+- Schema is defined in `prisma/schema.prisma`. Migrations are in `prisma/migrations/`.
 - Never expose raw DB errors to the client. Catch errors server-side and return generic messages.
-- The `sql/init.sql` file must contain all CREATE TABLE statements needed to set up the schema from scratch.
+- Check Prisma error codes (e.g. `P2002` = unique constraint) instead of PostgreSQL error codes.
+
+Example pattern:
+```ts
+import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
+
+try {
+  const user = await prisma.user.findUnique({ where: { email } })
+} catch (err) {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    return Response.json({ error: "Email already exists" }, { status: 409 })
+  }
+  return Response.json({ error: "Internal server error" }, { status: 500 })
+}
+```
 
 ---
 
@@ -130,45 +143,114 @@ export async function POST(req: Request) {
 
 ## Security Checklist (apply to everything generated)
 
-- [ ] No secrets in source code — only in `.env.local`
+- [ ] No secrets in source code — only in `.env`
 - [ ] All user inputs validated with Zod before any DB query
 - [ ] All `/dashboard` routes protected by middleware
 - [ ] All write API routes check session before executing
 - [ ] Passwords hashed with bcryptjs (never stored plain)
 - [ ] No raw SQL string concatenation — always tagged template literals
-- [ ] `.env.local` listed in `.gitignore`
+- [ ] `.env` listed in `.gitignore`
 - [ ] Generic error messages returned to client (no stack traces)
+
+---
+
+## Prisma Workflow (local Docker ↔ VPS)
+
+### Architecture DB
+- **Local** : PostgreSQL via Docker (DB vide, recréée par Prisma)
+- **VPS** : PostgreSQL direct, nouvelle DB dédiée à ce projet (séparée de l'ancienne DB Strapi)
+- Prisma est le seul gestionnaire du schéma — pas de Strapi, pas de SQL manuel
+
+### Règle Prisma 7 : pas de `url` dans schema.prisma
+Le `datasource db` ne doit PAS avoir de champ `url`. La connexion est dans `prisma.config.ts` uniquement.
+
+### Développement local (Docker)
+```bash
+# Modifier prisma/schema.prisma, puis :
+npm run db:migrate
+# → Entre un nom de migration (ex: "add_champ_foo")
+# → Crée prisma/migrations/YYYYMMDD_nom/migration.sql
+# → Applique sur la DB Docker locale
+# → Régénère le client TypeScript automatiquement
+```
+
+### Premier déploiement sur le VPS (DB vide)
+```bash
+# Sur le VPS, après git pull + npm install :
+npm run db:deploy     # Applique toutes les migrations (crée toutes les tables)
+npm run db:generate   # Génère le client TypeScript
+node scripts/seed-user.mjs  # Crée le premier admin
+```
+
+### Mises à jour suivantes sur le VPS
+```bash
+# Sur le VPS, après git pull :
+npm run db:deploy   # Applique uniquement les nouvelles migrations
+```
+
+### Voir et éditer les données visuellement
+```bash
+npm run db:studio
+# → Ouvre Prisma Studio sur http://localhost:5555
+```
+
+### Résumé des scripts
+| Commande | Usage |
+|---|---|
+| `npm run db:generate` | Regénère le client TypeScript après changement de schéma |
+| `npm run db:migrate` | Crée + applique une migration (local uniquement) |
+| `npm run db:deploy` | Applique les migrations en production (VPS, sans prompt) |
+| `npm run db:studio` | Interface visuelle pour parcourir/modifier les données |
+| `npm run db:baseline` | Marque une migration comme déjà appliquée (cas exceptionnel) |
 
 ---
 
 ## Initial Setup Commands
 
-After generating the project, run in order:
-
 ```bash
 # 1. Install dependencies
-npm install postgres next-auth@beta bcryptjs zod
-npm install -D @types/bcryptjs
+npm install
 
-# 2. Set up the database (run once on the VPS)
-psql -U monapp -d mabase -f sql/init.sql
-
-# 3. Generate NEXTAUTH_SECRET
+# 2. Generate NEXTAUTH_SECRET
 openssl rand -base64 32
 
-# 4. Start dev server
+# 3. Remplir .env avec DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL
+
+# 4. Setup Prisma local (Docker)
+npm run db:migrate    # Applique 0_init → crée toutes les tables
+npm run db:generate   # Génère le client
+
+# 5. Créer le premier admin
+node scripts/seed-user.mjs
+
+# 6. Start dev server
 npm run dev
 ```
 
 ---
 
-## What to Generate First
+## Modèles Prisma — Structure de la DB
 
-In this order:
-1. `lib/db.ts` — DB connection
-2. `sql/init.sql` — users table (id, email, password_hash, role, created_at)
-3. `lib/auth.ts` — NextAuth config with credentials provider
-4. `middleware.ts` — route protection
-5. `app/login/page.tsx` — login form
-6. `app/dashboard/page.tsx` — basic protected dashboard
-7. `app/api/users/route.ts` — example CRUD route
+Deux familles de tables dans `prisma/schema.prisma` :
+
+### Auth admin (table `users`)
+- `AdminUser` — administrateurs du dashboard (email + bcrypt password + role)
+- Utilisé par NextAuth via `prisma.adminUser`
+
+### Données métier (ex-Strapi)
+- `User` → table `up_users` — utilisateurs de l'app (patients/praticiens)
+- `Patient` → table `patients`
+- `Praticien` → table `praticiens`
+- `Exercice` → table `exercices`
+- `SuiviPatient` → table `suivi_patients`
+- `Prescription` → table `prescriptions`
+- `PageStatique` → table `page_statiques`
+- Composants : `ExerciceElement`, `ListeElement`, `ParcoursElement`, `Parcours`
+
+### Erreurs Prisma dans les catch
+Ne pas importer `Prisma` depuis `@prisma/client`. Utiliser :
+```ts
+} catch (err) {
+  if (err instanceof Error && "code" in err && err.code === "P2002") { ... }
+}
+```
