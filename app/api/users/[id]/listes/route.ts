@@ -8,6 +8,18 @@ const createListeSchema = z.object({
   exerciceIds: z.array(z.number().int()).default([]),
 })
 
+async function getOrCreatePatientId(userId: number): Promise<number | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { user_type: true, profil_patient: { select: { id: true } } },
+  })
+  if (!user) return null
+  if (user.profil_patient) return user.profil_patient.id
+  if (user.user_type !== "PATIENT") return null
+  const created = await prisma.patient.create({ data: { userId } })
+  return created.id
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -17,15 +29,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (isNaN(userId)) return Response.json({ error: "Invalid id" }, { status: 400 })
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { profil_patient: { select: { id: true } } },
-    })
-    if (!user) return Response.json({ error: "Utilisateur introuvable" }, { status: 404 })
-    if (!user.profil_patient) return Response.json({ error: "Cet utilisateur n'est pas un patient" }, { status: 400 })
+    const patientId = await getOrCreatePatientId(userId)
+    if (patientId === null) return Response.json({ error: "Cet utilisateur n'est pas un patient" }, { status: 400 })
 
     const listes = await prisma.liste.findMany({
-      where: { patientId: user.profil_patient.id },
+      where: { patientId },
       include: {
         exercices: { select: { id: true, numero: true, nom: true, macro: true } },
       },
@@ -52,19 +60,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!parsed.success) return Response.json({ error: "Invalid input" }, { status: 400 })
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { profil_patient: { select: { id: true } } },
-    })
-    if (!user) return Response.json({ error: "Utilisateur introuvable" }, { status: 404 })
-    if (!user.profil_patient) return Response.json({ error: "Cet utilisateur n'est pas un patient" }, { status: 400 })
+    const patientId = await getOrCreatePatientId(userId)
+    if (patientId === null) return Response.json({ error: "Cet utilisateur n'est pas un patient" }, { status: 400 })
 
     const { nom, date, exerciceIds } = parsed.data
     const liste = await prisma.liste.create({
       data: {
         nom: nom || null,
         date: date ? new Date(date) : null,
-        patientId: user.profil_patient.id,
+        patientId,
         exercices: exerciceIds.length > 0
           ? { connect: exerciceIds.map((eid) => ({ id: eid })) }
           : undefined,

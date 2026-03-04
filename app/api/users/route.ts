@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { sendConfirmationEmail } from "@/lib/mailer"
 import bcrypt from "bcryptjs"
+import crypto from "crypto"
 import { z } from "zod"
 
 const createSchema = z.object({
@@ -30,6 +32,25 @@ export async function POST(req: Request) {
     const user = await prisma.user.create({
       data: { passwordHash, ...rest },
     })
+
+    if (rest.user_type === "PATIENT") {
+      await prisma.patient.create({ data: { userId: user.id } })
+    } else if (rest.user_type === "PRATICIEN") {
+      await prisma.praticien.create({ data: { userId: user.id } })
+    }
+
+    const token = crypto.randomBytes(32).toString("hex")
+    const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000)
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailConfirmToken: token, emailConfirmExpiry: expiry },
+    })
+
+    const confirmUrl = `${process.env.APP_URL}/confirm-email?token=${token}`
+    sendConfirmationEmail(user.email, confirmUrl).catch((err) =>
+      console.error("[email] Confirmation send failed:", err)
+    )
+
     return Response.json({ id: user.id }, { status: 201 })
   } catch (err) {
     console.error("[POST /api/users]", err)

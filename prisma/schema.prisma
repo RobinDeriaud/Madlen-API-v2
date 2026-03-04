@@ -118,8 +118,10 @@ model User {
   passwordHash String   @map("password_hash")
   nom          String?
   prenom       String?
-  confirmed    Boolean  @default(false)
-  user_type    UserType @default(NONE) @map("user_type")
+  confirmed           Boolean   @default(false)
+  emailConfirmToken   String?   @map("email_confirm_token")
+  emailConfirmExpiry  DateTime? @map("email_confirm_expiry")
+  user_type           UserType  @default(NONE) @map("user_type")
 
   profil_patient   Patient?
   profil_praticien Praticien?
@@ -171,7 +173,7 @@ model Liste {
   id        Int       @id @default(autoincrement())
   nom       String?
   date      DateTime? @db.Date
-  isActive  Boolean   @default(true) @map("is_active")
+  isActive  Boolean   @default(false) @map("is_active")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 

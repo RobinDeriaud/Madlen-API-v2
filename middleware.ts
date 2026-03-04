@@ -15,5 +15,5 @@ const nextAuthMiddleware = NextAuth(authConfig).auth
 export default nextAuthMiddleware
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/api-docs", "/api/swagger"],
 }

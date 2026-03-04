@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { MacroBadge } from "@/lib/macro"
+import { MacroBadge, MACRO_CONFIG } from "@/lib/macro"
 
 type Exercice = {
   id: number
@@ -40,6 +40,7 @@ export default function ExercicesPage() {
   const [sortKey, setSortKey] = useState<SortKey>("numero")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [search, setSearch] = useState("")
+  const [macroFilter, setMacroFilter] = useState<string | "ALL">("ALL")
 
   useEffect(() => {
     fetch("/api/exercices")
@@ -74,17 +75,18 @@ export default function ExercicesPage() {
       </div>
     )
 
-  const filtered = search.trim()
-    ? exercices.filter((ex) => {
-        const q = search.trim().toLowerCase()
-        return (
-          String(ex.numero ?? "").includes(q) ||
-          (ex.nom ?? "").toLowerCase().includes(q)
-        )
-      })
-    : exercices
+  const filtered = exercices
+    .filter((ex) => macroFilter === "ALL" || ex.macro === macroFilter)
+    .filter((ex) => {
+      const q = search.trim().toLowerCase()
+      if (!q) return true
+      return (
+        String(ex.numero ?? "").includes(q) ||
+        (ex.nom ?? "").toLowerCase().includes(q)
+      )
+    })
   const rows = sorted(filtered, sortKey, sortDir)
-  const isFiltering = search.trim().length > 0
+  const isFiltering = search.trim().length > 0 || macroFilter !== "ALL"
 
   return (
     <div>
@@ -97,6 +99,34 @@ export default function ExercicesPage() {
         >
           + Nouvel exercice
         </Link>
+      </div>
+
+      {/* Filtres par macro */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          onClick={() => setMacroFilter("ALL")}
+          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+            macroFilter === "ALL"
+              ? "bg-gray-800 text-white border-gray-800"
+              : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+          }`}
+        >
+          Toutes
+        </button>
+        {Object.entries(MACRO_CONFIG).map(([key, cfg]) => (
+          <button
+            key={key}
+            onClick={() => setMacroFilter(key)}
+            className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+            style={
+              macroFilter === key
+                ? { backgroundColor: cfg.bg, borderColor: cfg.border, color: cfg.text }
+                : { backgroundColor: "#fff", borderColor: "#D1D5DB", color: "#4B5563" }
+            }
+          >
+            {cfg.label}
+          </button>
+        ))}
       </div>
 
       {/* Barre de recherche + compteur */}

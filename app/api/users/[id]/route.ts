@@ -66,6 +66,44 @@ export async function GET(
   }
 }
 
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth()
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { id: rawId } = await params
+  const id = parseInt(rawId)
+  if (isNaN(id)) return Response.json({ error: "Invalid id" }, { status: 400 })
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: { profil_patient: true, profil_praticien: true },
+    })
+    if (!user) return Response.json({ error: "Not found" }, { status: 404 })
+
+    if (user.profil_patient) {
+      await prisma.liste.deleteMany({ where: { patientId: user.profil_patient.id } })
+      await prisma.patient.delete({ where: { id: user.profil_patient.id } })
+    }
+
+    if (user.profil_praticien) {
+      await prisma.patient.updateMany({
+        where: { praticienId: user.profil_praticien.id },
+        data: { praticienId: null },
+      })
+      await prisma.praticien.delete({ where: { id: user.profil_praticien.id } })
+    }
+
+    await prisma.user.delete({ where: { id } })
+    return Response.json({ ok: true })
+  } catch {
+    return Response.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -90,24 +128,28 @@ export async function PUT(
       include: { profil_patient: true, profil_praticien: true },
     })
 
+    // Upsert profil_patient
     if (profil_patient != null) {
       if (user.profil_patient) {
         await prisma.patient.update({ where: { id: user.profil_patient.id }, data: profil_patient })
       } else {
-        await prisma.patient.create({
-          data: { ...profil_patient, userId: id },
-        })
+        await prisma.patient.create({ data: { ...profil_patient, userId: id } })
       }
+    } else if (userFields.user_type === "PATIENT" && !user.profil_patient) {
+      // Auto-create empty patient profile when role is set to PATIENT
+      await prisma.patient.create({ data: { userId: id } })
     }
 
+    // Upsert profil_praticien
     if (profil_praticien != null) {
       if (user.profil_praticien) {
         await prisma.praticien.update({ where: { id: user.profil_praticien.id }, data: profil_praticien })
       } else {
-        await prisma.praticien.create({
-          data: { ...profil_praticien, userId: id },
-        })
+        await prisma.praticien.create({ data: { ...profil_praticien, userId: id } })
       }
+    } else if (userFields.user_type === "PRATICIEN" && !user.profil_praticien) {
+      // Auto-create empty praticien profile when role is set to PRATICIEN
+      await prisma.praticien.create({ data: { userId: id } })
     }
 
     const updated = await prisma.user.findUnique({

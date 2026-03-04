@@ -71,21 +71,30 @@ export async function PUT(
     if (!existing) return Response.json({ error: "Liste introuvable" }, { status: 404 })
 
     const { nom, date, isActive, exerciceIds } = parsed.data
+    const patientId = user.profil_patient.id
 
-    const liste = await prisma.liste.update({
-      where: { id: lId },
-      data: {
-        ...(nom !== undefined ? { nom } : {}),
-        ...(date !== undefined ? { date: date ? new Date(date) : null } : {}),
-        ...(isActive !== undefined ? { isActive } : {}),
-        ...(exerciceIds !== undefined
-          ? {
-              exercices: {
-                set: exerciceIds.map((eid) => ({ id: eid })),
-              },
-            }
-          : {}),
-      },
+    const liste = await prisma.$transaction(async (tx) => {
+      if (isActive === true) {
+        await tx.liste.updateMany({
+          where: { patientId, id: { not: lId } },
+          data: { isActive: false },
+        })
+      }
+      return tx.liste.update({
+        where: { id: lId },
+        data: {
+          ...(nom !== undefined ? { nom } : {}),
+          ...(date !== undefined ? { date: date ? new Date(date) : null } : {}),
+          ...(isActive !== undefined ? { isActive } : {}),
+          ...(exerciceIds !== undefined
+            ? {
+                exercices: {
+                  set: exerciceIds.map((eid) => ({ id: eid })),
+                },
+              }
+            : {}),
+        },
+      })
     })
 
     return Response.json({ id: liste.id })
@@ -93,6 +102,38 @@ export async function PUT(
     if (err instanceof Error && "code" in err && err.code === "P2025") {
       return Response.json({ error: "Liste introuvable" }, { status: 404 })
     }
+    return Response.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string; listeId: string }> }
+) {
+  const session = await auth()
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { id, listeId } = await params
+  const userId = parseInt(id)
+  const lId = parseInt(listeId)
+  if (isNaN(userId) || isNaN(lId)) return Response.json({ error: "Invalid id" }, { status: 400 })
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profil_patient: { select: { id: true } } },
+    })
+    if (!user?.profil_patient) return Response.json({ error: "Patient introuvable" }, { status: 404 })
+
+    const existing = await prisma.liste.findFirst({
+      where: { id: lId, patientId: user.profil_patient.id },
+    })
+    if (!existing) return Response.json({ error: "Liste introuvable" }, { status: 404 })
+
+    await prisma.liste.delete({ where: { id: lId } })
+
+    return Response.json({ ok: true })
+  } catch {
     return Response.json({ error: "Internal server error" }, { status: 500 })
   }
 }

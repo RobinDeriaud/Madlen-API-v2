@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npx prisma generate)",
       "Bash(npm uninstall postgres)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(head -50 /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-API-v2/app/api/auth/[...nextauth]/route.ts)",
+      "Bash(npm install swagger-ui-react @types/swagger-ui-react)"
     ]
   }
 }

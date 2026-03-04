@@ -603,6 +603,162 @@ function EditListeModal({ userId, listeId, onClose, onSaved }: {
   )
 }
 
+// ─── Confirm Delete Modal ─────────────────────────────────────────────────────
+
+function ConfirmDeleteModal({ displayName, onClose, onConfirm, deleting }: {
+  displayName: string
+  onClose: () => void
+  onConfirm: () => void
+  deleting: boolean
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape" && !deleting) onClose() }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [onClose, deleting])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
+      onClick={() => !deleting && onClose()}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-bold text-gray-800">Supprimer l&apos;utilisateur</h2>
+        <p className="text-sm text-gray-600">
+          Vous êtes sur le point de supprimer définitivement{" "}
+          <strong className="text-gray-900">{displayName}</strong>.
+          Cette action supprimera également son profil et ses listes d&apos;exercices.
+        </p>
+        <p className="text-sm font-semibold text-red-600">Cette action est irréversible.</p>
+        <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting}
+            className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+          >
+            {deleting ? "Suppression…" : "Supprimer définitivement"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
+          >
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Confirm Activate Liste Modal ────────────────────────────────────────────
+
+function ConfirmActivateListeModal({ listeNom, onClose, onConfirm, activating }: {
+  listeNom: string | null
+  onClose: () => void
+  onConfirm: () => void
+  activating: boolean
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape" && !activating) onClose() }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [onClose, activating])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
+      onClick={() => !activating && onClose()}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-bold text-gray-800">Activer cette liste ?</h2>
+        <p className="text-sm text-gray-600">
+          La liste <strong className="text-gray-900">{listeNom ?? "Sans nom"}</strong> deviendra
+          la liste active. Toutes les autres listes de ce patient seront désactivées.
+        </p>
+        <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={activating}
+            className="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50"
+          >
+            {activating ? "Activation…" : "Activer"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={activating}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
+          >
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Confirm Delete Liste Modal ───────────────────────────────────────────────
+
+function ConfirmDeleteListeModal({ listeNom, onClose, onConfirm, deleting }: {
+  listeNom: string | null
+  onClose: () => void
+  onConfirm: () => void
+  deleting: boolean
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape" && !deleting) onClose() }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [onClose, deleting])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
+      onClick={() => !deleting && onClose()}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-bold text-gray-800">Supprimer la liste</h2>
+        <p className="text-sm text-gray-600">
+          Vous êtes sur le point de supprimer définitivement la liste{" "}
+          <strong className="text-gray-900">{listeNom ?? "Sans nom"}</strong>.
+        </p>
+        <p className="text-sm font-semibold text-red-600">Cette action est irréversible.</p>
+        <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting}
+            className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+          >
+            {deleting ? "Suppression…" : "Supprimer"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
+          >
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Inner Page (uses useSearchParams) ───────────────────────────────────────
 
 function UserEditInner() {
@@ -653,6 +809,12 @@ function UserEditInner() {
   const [listesLoading, setListesLoading] = useState(false)
   const [showNewListe, setShowNewListe] = useState(false)
   const [editingListeId, setEditingListeId] = useState<number | null>(null)
+  const [activatingListeId, setActivatingListeId] = useState<number | null>(null)
+  const [confirmingActivate, setConfirmingActivate] = useState<{ id: number; nom: string | null } | null>(null)
+  const [confirmingDeleteListe, setConfirmingDeleteListe] = useState<{ id: number; nom: string | null } | null>(null)
+  const [deletingListeId, setDeletingListeId] = useState<number | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Determine initial tab from searchParams
   const defaultTab = searchParams.get("tab") ?? "general"
@@ -849,6 +1011,51 @@ function UserEditInner() {
     setSaving(false)
   }
 
+  async function handleActivateListe() {
+    if (!confirmingActivate || activatingListeId !== null) return
+    const listeId = confirmingActivate.id
+    setActivatingListeId(listeId)
+    try {
+      const res = await fetch(`/api/users/${id}/listes/${listeId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: true }),
+      })
+      if (res.ok) {
+        setListes((prev) => prev.map((l) => ({ ...l, isActive: l.id === listeId })))
+        setConfirmingActivate(null)
+      }
+    } finally {
+      setActivatingListeId(null)
+    }
+  }
+
+  async function handleDeleteListe() {
+    if (!confirmingDeleteListe || deletingListeId !== null) return
+    const listeId = confirmingDeleteListe.id
+    setDeletingListeId(listeId)
+    try {
+      const res = await fetch(`/api/users/${id}/listes/${listeId}`, { method: "DELETE" })
+      if (res.ok) {
+        setListes((prev) => prev.filter((l) => l.id !== listeId))
+        setConfirmingDeleteListe(null)
+      }
+    } finally {
+      setDeletingListeId(null)
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    const res = await fetch(`/api/users/${id}`, { method: "DELETE" })
+    if (res.ok) {
+      router.push("/dashboard/users")
+    } else {
+      setDeleting(false)
+      setShowDeleteModal(false)
+    }
+  }
+
   if (loading) return <p className="text-gray-500">Chargement...</p>
   if (error) return <p className="text-red-500">{error}</p>
 
@@ -864,13 +1071,28 @@ function UserEditInner() {
 
   return (
     <div className="max-w-3xl">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/dashboard/users" className="text-gray-400 hover:text-gray-700 text-sm">
-          ← Utilisateurs
-        </Link>
-        <span className="text-gray-300">/</span>
-        <h1 className="text-xl font-bold text-gray-800">{displayName}</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard/users" className="text-gray-400 hover:text-gray-700 text-sm">
+            ← Utilisateurs
+          </Link>
+          <span className="text-gray-300">/</span>
+          <h1 className="text-xl font-bold text-gray-800">{displayName}</h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowDeleteModal(true)}
+          className="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded hover:bg-red-50 transition-colors"
+        >
+          Supprimer
+        </button>
       </div>
+
+      {searchParams.get("emailSent") === "1" && (
+        <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded text-sm text-green-800">
+          Un e-mail de confirmation a été envoyé à <strong>{f.email}</strong>.
+        </div>
+      )}
 
       <TabBar tabs={tabs} active={validTab} onChange={setActiveTab} />
 
@@ -1135,7 +1357,7 @@ function UserEditInner() {
                   <th className="text-left py-2 pl-3 pr-4 font-semibold text-gray-500">Nom</th>
                   <th className="text-left py-2 pr-4 font-semibold text-gray-500 w-32">Date</th>
                   <th className="text-left py-2 pr-4 font-semibold text-gray-500 w-20">Exercices</th>
-                  <th className="text-left py-2 pr-4 font-semibold text-gray-500 w-20">Statut</th>
+                  <th className="py-2 pr-4 w-10" />
                   <th className="py-2 pr-3 w-16" />
                 </tr>
               </thead>
@@ -1176,20 +1398,40 @@ function UserEditInner() {
                     </td>
                     <td className="py-2 pr-4 text-gray-600 align-top">{l.exercices.length}</td>
                     <td className="py-2 pr-4 align-top">
-                      {l.isActive ? (
-                        <span className="text-xs text-green-600 font-medium">Active</span>
-                      ) : (
-                        <span className="text-xs text-gray-400 font-medium">Inactive</span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3 text-right align-top">
                       <button
                         type="button"
-                        onClick={() => setEditingListeId(l.id)}
-                        className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                        onClick={() => !l.isActive && setConfirmingActivate({ id: l.id, nom: l.nom })}
+                        disabled={activatingListeId !== null}
+                        title={l.isActive ? "Liste active" : "Activer cette liste"}
+                        className={[
+                          "text-lg leading-none transition-colors",
+                          l.isActive
+                            ? "text-amber-400 cursor-default"
+                            : "text-gray-300 hover:text-amber-400 cursor-pointer",
+                          activatingListeId === l.id ? "opacity-50" : "",
+                        ].join(" ")}
                       >
-                        Éditer
+                        {activatingListeId === l.id ? "…" : l.isActive ? "★" : "☆"}
                       </button>
+                    </td>
+                    <td className="py-2 pr-3 text-right align-top">
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setEditingListeId(l.id)}
+                          className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                        >
+                          Éditer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingDeleteListe({ id: l.id, nom: l.nom })}
+                          disabled={deletingListeId !== null}
+                          className="text-xs text-gray-400 hover:text-red-500 disabled:opacity-40 transition-colors"
+                        >
+                          {deletingListeId === l.id ? "…" : "Suppr."}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1212,6 +1454,30 @@ function UserEditInner() {
           listeId={editingListeId}
           onClose={() => setEditingListeId(null)}
           onSaved={reloadListes}
+        />
+      )}
+      {confirmingActivate !== null && (
+        <ConfirmActivateListeModal
+          listeNom={confirmingActivate.nom}
+          onClose={() => setConfirmingActivate(null)}
+          onConfirm={handleActivateListe}
+          activating={activatingListeId !== null}
+        />
+      )}
+      {confirmingDeleteListe !== null && (
+        <ConfirmDeleteListeModal
+          listeNom={confirmingDeleteListe.nom}
+          onClose={() => setConfirmingDeleteListe(null)}
+          onConfirm={handleDeleteListe}
+          deleting={deletingListeId !== null}
+        />
+      )}
+      {showDeleteModal && (
+        <ConfirmDeleteModal
+          displayName={displayName}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleDelete}
+          deleting={deleting}
         />
       )}
     </div>

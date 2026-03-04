@@ -55,7 +55,7 @@ export default function NouvelUtilisateurPage() {
 
     if (res.ok) {
       const data = await res.json()
-      router.push(`/dashboard/users/${data.id}`)
+      router.push(`/dashboard/users/${data.id}?emailSent=1`)
     } else {
       const data = await res.json()
       setError(data.error ?? "Erreur lors de la création.")
@@ -106,6 +106,7 @@ export default function NouvelUtilisateurPage() {
             type="submit"
             disabled={saving}
             className="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50"
+            suppressHydrationWarning
           >
             {saving ? "Création…" : "Créer et éditer"}
           </button>
