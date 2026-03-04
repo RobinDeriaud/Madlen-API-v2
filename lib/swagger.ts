@@ -23,6 +23,59 @@ export const swaggerSpec = {
           prenom: { type: "string", nullable: true },
           user_type: { type: "string", enum: ["NONE", "PATIENT", "PRATICIEN"] },
           confirmed: { type: "boolean" },
+          profil_patient: {
+            nullable: true,
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              age: { type: "integer", nullable: true },
+              sexe: { type: "string", enum: ["FEMININ", "MASCULIN"], nullable: true },
+              praticienId: { type: "integer", nullable: true },
+            },
+          },
+          profil_praticien: {
+            nullable: true,
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              numero_adeli: { type: "string", nullable: true },
+            },
+          },
+        },
+      },
+      UserSummary: {
+        type: "object",
+        description: "Utilisateur avec profil_patient minimal (retourné dans GET /users)",
+        properties: {
+          id: { type: "integer" },
+          email: { type: "string", format: "email" },
+          nom: { type: "string", nullable: true },
+          prenom: { type: "string", nullable: true },
+          user_type: { type: "string", enum: ["NONE", "PATIENT", "PRATICIEN"] },
+          confirmed: { type: "boolean" },
+          profil_patient: {
+            nullable: true,
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              praticienId: { type: "integer", nullable: true },
+            },
+          },
+        },
+      },
+      Liste: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          nom: { type: "string", nullable: true },
+          date: { type: "string", format: "date-time", nullable: true },
+          isActive: { type: "boolean" },
+          patientId: { type: "integer" },
+          createdAt: { type: "string", format: "date-time" },
+          exercices: {
+            type: "array",
+            items: { $ref: "#/components/schemas/Exercice" },
+          },
         },
       },
       Exercice: {
@@ -87,7 +140,7 @@ export const swaggerSpec = {
             description: "Liste des utilisateurs",
             content: {
               "application/json": {
-                schema: { type: "array", items: { $ref: "#/components/schemas/User" } },
+                schema: { type: "array", items: { $ref: "#/components/schemas/UserSummary" } },
               },
             },
           },
@@ -157,7 +210,25 @@ export const swaggerSpec = {
                   email: { type: "string", format: "email" },
                   nom: { type: "string", nullable: true },
                   prenom: { type: "string", nullable: true },
+                  confirmed: { type: "boolean" },
                   user_type: { type: "string", enum: ["NONE", "PATIENT", "PRATICIEN"] },
+                  profil_patient: {
+                    nullable: true,
+                    type: "object",
+                    description: "Si fourni, upsert du profil patient",
+                    properties: {
+                      age: { type: "integer", nullable: true },
+                      sexe: { type: "string", enum: ["FEMININ", "MASCULIN"], nullable: true },
+                    },
+                  },
+                  profil_praticien: {
+                    nullable: true,
+                    type: "object",
+                    description: "Si fourni, upsert du profil praticien",
+                    properties: {
+                      numero_adeli: { type: "string", nullable: true },
+                    },
+                  },
                 },
               },
             },
@@ -168,6 +239,7 @@ export const swaggerSpec = {
           "400": { $ref: "#/components/responses/BadRequest" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "404": { $ref: "#/components/responses/NotFound" },
+          "409": { description: "Email déjà utilisé", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "500": { $ref: "#/components/responses/InternalError" },
         },
       },
@@ -197,11 +269,48 @@ export const swaggerSpec = {
     },
     "/users/{id}/listes": {
       get: {
-        summary: "Listes d'un utilisateur",
+        summary: "Listes d'un utilisateur patient",
         tags: ["Users"],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
         responses: {
-          "200": { description: "Liste des listes" },
+          "200": {
+            description: "Liste des listes, triées par date de création décroissante",
+            content: {
+              "application/json": {
+                schema: { type: "array", items: { $ref: "#/components/schemas/Liste" } },
+              },
+            },
+          },
+          "400": { description: "L'utilisateur n'est pas un patient", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      post: {
+        summary: "Créer une liste pour un patient",
+        tags: ["Users"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  nom: { type: "string" },
+                  date: { type: "string", format: "date-time", nullable: true },
+                  exerciceIds: { type: "array", items: { type: "integer" }, default: [] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Liste créée",
+            content: { "application/json": { schema: { type: "object", properties: { id: { type: "integer" } } } } },
+          },
+          "400": { description: "Données invalides ou utilisateur non-patient", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "500": { $ref: "#/components/responses/InternalError" },
         },
@@ -216,7 +325,57 @@ export const swaggerSpec = {
           { name: "listeId", in: "path", required: true, schema: { type: "integer" } },
         ],
         responses: {
-          "200": { description: "Détail de la liste" },
+          "200": {
+            description: "Détail de la liste avec exercices",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Liste" } } },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      put: {
+        summary: "Modifier une liste",
+        tags: ["Users"],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "integer" } },
+          { name: "listeId", in: "path", required: true, schema: { type: "integer" } },
+        ],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  nom: { type: "string", nullable: true },
+                  date: { type: "string", format: "date-time", nullable: true },
+                  isActive: { type: "boolean", description: "Passer à true désactive toutes les autres listes du patient" },
+                  exerciceIds: { type: "array", items: { type: "integer" }, description: "Remplace la liste d'exercices (set complet)" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Liste mise à jour",
+            content: { "application/json": { schema: { type: "object", properties: { id: { type: "integer" } } } } },
+          },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      delete: {
+        summary: "Supprimer une liste",
+        tags: ["Users"],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "integer" } },
+          { name: "listeId", in: "path", required: true, schema: { type: "integer" } },
+        ],
+        responses: {
+          "200": { description: "Supprimée" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "404": { $ref: "#/components/responses/NotFound" },
           "500": { $ref: "#/components/responses/InternalError" },
