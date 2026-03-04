@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx prisma generate)",
-      "Bash(npm uninstall postgres)"
+      "Bash(npm uninstall postgres)",
+      "Bash(npm install)"
     ]
   }
 }
