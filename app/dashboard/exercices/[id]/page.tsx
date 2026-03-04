@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 // ─── Enum options ────────────────────────────────────────────────────────────
 
@@ -112,6 +112,31 @@ function toDatetimeInput(iso: string | null): string {
   return iso.slice(0, 16)
 }
 
+// ─── ListeElement types & options ────────────────────────────────────────────
+
+type ReponseElementValue = "NULL" | "OUI" | "NON"
+
+type ListeElementLocal = {
+  _key: number
+  id?: number
+  element: string
+  reponse: ReponseElementValue
+  order: number
+}
+
+type ListeElementFromApi = {
+  id: number
+  element: string | null
+  reponse: string | null
+  order: number | null
+}
+
+const REPONSE_OPTIONS: { value: ReponseElementValue; label: string }[] = [
+  { value: "NULL", label: "—" },
+  { value: "OUI", label: "Oui" },
+  { value: "NON", label: "Non" },
+]
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -156,6 +181,187 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest pt-4 pb-1 border-b border-gray-100">
       {children}
     </h2>
+  )
+}
+
+function ListeElementsEditor({ exerciceId }: { exerciceId: string }) {
+  const keyRef = useRef(0)
+  function nextKey() { return ++keyRef.current }
+
+  const [items, setItems] = useState<ListeElementLocal[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/exercices/${exerciceId}/liste-elements`)
+      .then((r) => r.json())
+      .then((data: ListeElementFromApi[]) => {
+        setItems(
+          data.map((d) => ({
+            _key: nextKey(),
+            id: d.id,
+            element: d.element ?? "",
+            reponse: (d.reponse as ReponseElementValue) ?? "NULL",
+            order: d.order ?? 0,
+          }))
+        )
+      })
+      .finally(() => setLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exerciceId])
+
+  function addItem() {
+    setItems((prev) => [...prev, { _key: nextKey(), element: "", reponse: "NULL", order: prev.length }])
+    setSaved(false)
+  }
+
+  function removeItem(key: number) {
+    setItems((prev) => prev.filter((i) => i._key !== key))
+    setSaved(false)
+  }
+
+  function updateItem(key: number, field: "element" | "reponse", value: string) {
+    setItems((prev) => prev.map((i) => (i._key === key ? { ...i, [field]: value } : i)))
+    setSaved(false)
+  }
+
+  function moveUp(index: number) {
+    if (index === 0) return
+    setItems((prev) => {
+      const next = [...prev]
+      ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+      return next
+    })
+    setSaved(false)
+  }
+
+  function moveDown(index: number) {
+    setItems((prev) => {
+      if (index === prev.length - 1) return prev
+      const next = [...prev]
+      ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
+      return next
+    })
+    setSaved(false)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    setSaved(false)
+    setSaveError(null)
+
+    const body = items.map((item, i) => ({
+      element: item.element || null,
+      reponse: item.reponse,
+      order: i,
+    }))
+
+    const res = await fetch(`/api/exercices/${exerciceId}/liste-elements`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+
+    if (res.ok) {
+      const data: ListeElementFromApi[] = await res.json()
+      setItems(
+        data.map((d) => ({
+          _key: nextKey(),
+          id: d.id,
+          element: d.element ?? "",
+          reponse: (d.reponse as ReponseElementValue) ?? "NULL",
+          order: d.order ?? 0,
+        }))
+      )
+      setSaved(true)
+    } else {
+      const data = await res.json()
+      setSaveError(data.error ?? "Erreur lors de la sauvegarde.")
+    }
+    setSaving(false)
+  }
+
+  if (loading) return <p className="text-gray-400 text-sm mt-6">Chargement de la liste…</p>
+
+  return (
+    <div className="mt-6 flex flex-col gap-3">
+      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest pt-4 pb-1 border-b border-gray-100">
+        Liste d&apos;éléments
+      </h2>
+
+      {items.length === 0 && (
+        <p className="text-gray-400 text-sm">Aucun élément.</p>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {items.map((item, i) => (
+          <div key={item._key} className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 w-5 text-right shrink-0">{i + 1}</span>
+            <input
+              type="text"
+              className={`${inputCls} flex-1`}
+              value={item.element}
+              onChange={(e) => updateItem(item._key, "element", e.target.value)}
+              placeholder="Texte de l'élément"
+            />
+            <select
+              className={`${inputCls} w-20 shrink-0`}
+              value={item.reponse}
+              onChange={(e) => updateItem(item._key, "reponse", e.target.value)}
+            >
+              {REPONSE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <div className="flex flex-col gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => moveUp(i)}
+                disabled={i === 0}
+                className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
+                title="Monter"
+              >▲</button>
+              <button
+                type="button"
+                onClick={() => moveDown(i)}
+                disabled={i === items.length - 1}
+                className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
+                title="Descendre"
+              >▼</button>
+            </div>
+            <button
+              type="button"
+              onClick={() => removeItem(item._key)}
+              className="text-gray-400 hover:text-red-500 text-lg leading-none shrink-0"
+              title="Supprimer"
+            >×</button>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={addItem}
+        className="self-start text-sm text-gray-500 hover:text-gray-800 border border-dashed border-gray-300 rounded px-3 py-1.5 hover:border-gray-500"
+      >
+        + Ajouter un élément
+      </button>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="px-4 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-500 disabled:opacity-50"
+        >
+          {saving ? "Enregistrement…" : "Enregistrer la liste"}
+        </button>
+        {saved && <span className="text-green-600 text-sm">Sauvegardée.</span>}
+        {saveError && <span className="text-red-500 text-sm">{saveError}</span>}
+      </div>
+    </div>
   )
 }
 
@@ -413,6 +619,8 @@ export default function ExerciceEditPage() {
           {saveError && <span className="text-red-500 text-sm">{saveError}</span>}
         </div>
       </form>
+
+      <ListeElementsEditor exerciceId={id} />
     </div>
   )
 }

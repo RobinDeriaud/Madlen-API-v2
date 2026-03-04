@@ -8,7 +8,6 @@
 import { readFileSync, readdirSync } from "fs"
 import { resolve, join, dirname } from "path"
 import { fileURLToPath } from "url"
-import { randomUUID } from "crypto"
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
@@ -32,7 +31,7 @@ const prisma = new PrismaClient({ adapter })
 // ────────────────────────────────────────────────────────────
 // Répertoire des fichiers .ini
 // ────────────────────────────────────────────────────────────
-const INI_DIR = resolve(__dirname, "..", "..", "..", "EXO_260303")
+const INI_DIR = "C:\\Users\\rderi\\Dropbox\\MADLEN-Delphi\\div_madlen\\exercices"
 
 // ────────────────────────────────────────────────────────────
 // Helpers de parsing
@@ -330,11 +329,7 @@ for (const filePath of files) {
     const upserted = await prisma.exercice.upsert({
       where: { numero },
       update: payload,
-      create: {
-        documentId: randomUUID(),
-        numero,
-        ...payload,
-      },
+      create: { numero, ...payload },
     })
 
     // Recrée les ListeElements à chaque import (source de vérité = fichier .ini)

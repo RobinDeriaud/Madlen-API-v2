@@ -7,10 +7,10 @@ datasource db {
 }
 
 // ============================================================
-// ADMIN AUTH (table indépendante de Strapi)
+// ADMIN AUTH (table indépendante)
 // ============================================================
 
-/// Administrateurs du dashboard — table: users
+/// Administrateurs du dashboard — table: admin_users
 model AdminUser {
   id           Int      @id @default(autoincrement())
   email        String   @unique
@@ -18,11 +18,11 @@ model AdminUser {
   role         String   @default("admin")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  @@map("users")
+  @@map("admin_users")
 }
 
 // ============================================================
-// ENUMS (Strapi)
+// ENUMS
 // ============================================================
 
 enum UserType {
@@ -36,16 +36,16 @@ enum Sexe {
   MASCULIN @map("masculin")
 }
 
-enum ReponseElement {
-  NULL @map("null")
-  OUI  @map("oui")
-  NON  @map("non")
-}
-
 enum Recurrence {
   FAIBLE  @map("faible")
   MOYENNE @map("moyenne")
   HAUTE   @map("haute")
+}
+
+enum ReponseElement {
+  NULL @map("null")
+  OUI  @map("oui")
+  NON  @map("non")
 }
 
 enum OutilExercice {
@@ -108,37 +108,45 @@ enum AxeExercice {
 }
 
 // ============================================================
-// MODÈLES STRAPI
+// MODÈLES
 // ============================================================
 
-/// plugin::users-permissions.user → table: up_users
+/// Utilisateurs de l'application — table: users
 model User {
-  id                Int       @id @default(autoincrement())
-  documentId        String    @unique @map("document_id")
-  username          String    @unique
-  email             String    @unique
-  password          String?
-  nom               String?
-  prenom            String?
-  provider          String?
-  confirmed         Boolean   @default(false)
-  blocked           Boolean   @default(false)
-  profile_completed Boolean   @default(false) @map("profile_completed")
-  user_type         UserType  @default(NONE) @map("user_type")
-  publishedAt       DateTime? @map("published_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  nom          String?
+  prenom       String?
+  confirmed    Boolean  @default(false)
+  user_type    UserType @default(NONE) @map("user_type")
 
   profil_patient   Patient?
   profil_praticien Praticien?
 
-  @@map("up_users")
+  @@map("users")
 }
 
-/// api::patient.patient → table: patients
+/// Praticien — table: praticiens
+model Praticien {
+  id           Int       @id @default(autoincrement())
+  numero_adeli String?   @map("numero_adeli")
+  publishedAt  DateTime? @map("published_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  userId Int?  @unique @map("users_permissions_user_id")
+  user   User? @relation(fields: [userId], references: [id])
+
+  /// Liste des patients suivis par ce praticien
+  patients Patient[]
+
+  @@map("praticiens")
+}
+
+/// Patient — table: patients
 model Patient {
   id          Int       @id @default(autoincrement())
-  documentId  String    @unique @map("document_id")
   age         Int?
   sexe        Sexe?
   publishedAt DateTime? @map("published_at")
@@ -148,33 +156,38 @@ model Patient {
   userId Int?  @unique @map("users_permissions_user_id")
   user   User? @relation(fields: [userId], references: [id])
 
-  suivi_patients SuiviPatient[]
+  /// Praticien référent (un seul par patient)
+  praticienId Int?       @map("praticien_id")
+  praticien   Praticien? @relation(fields: [praticienId], references: [id])
+
+  /// Listes d'exercices prescrites à ce patient
+  listes Liste[]
 
   @@map("patients")
 }
 
-/// api::praticien.praticien → table: praticiens
-model Praticien {
-  id           Int       @id @default(autoincrement())
-  documentId   String    @unique @map("document_id")
-  numero_adeli String?   @map("numero_adeli")
-  publishedAt  DateTime? @map("published_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+/// Liste d'exercices prescrite à un patient — table: listes
+model Liste {
+  id        Int       @id @default(autoincrement())
+  nom       String?
+  date      DateTime? @db.Date
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
-  userId Int?  @unique @map("users_permissions_user_id")
-  user   User? @relation(fields: [userId], references: [id])
+  /// Patient à qui appartient cette liste
+  patientId Int     @map("patient_id")
+  patient   Patient @relation(fields: [patientId], references: [id])
 
-  suivi_patients      SuiviPatient[]
-  prescriptions_crees Prescription[] @relation("praticien_creator")
+  /// Exercices référencés par cette liste (many-to-many implicite)
+  exercices Exercice[]
 
-  @@map("praticiens")
+  @@map("listes")
 }
 
-/// api::exercice.exercice → table: exercices
+/// Exercice indépendant — table: exercices
 model Exercice {
   id           Int            @id @default(autoincrement())
-  documentId   String         @unique @map("document_id")
   numero       Int?           @unique
   nom          String?
   sigle        String?
@@ -198,93 +211,16 @@ model Exercice {
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
-  liste             ListeElement[]
-  exercice_elements ExerciceElement[]
-  parcours_elements ParcoursElement[]
+  /// Listes qui référencent cet exercice (relation implicite, non exposée en API)
+  listes Liste[]
+
+  /// Items de checklist propres à cet exercice (ex: réponses oui/non)
+  listeElements ListeElement[]
 
   @@map("exercices")
 }
 
-/// api::suivi-patient.suivi-patient → table: suivi_patients
-model SuiviPatient {
-  id             Int       @id @default(autoincrement())
-  documentId     String    @unique @map("document_id")
-  actif          Boolean?
-  archived       Boolean?
-  isConfirmed    Boolean?  @map("is_confirmed")
-  dateDebutSuivi DateTime? @map("date_debut_suivi") @db.Date
-  publishedAt    DateTime? @map("published_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-
-  patientId   Int?       @map("patient_id")
-  patient     Patient?   @relation(fields: [patientId], references: [id])
-  praticienId Int?       @map("praticien_id")
-  praticien   Praticien? @relation(fields: [praticienId], references: [id])
-
-  prescriptions Prescription[]
-
-  @@map("suivi_patients")
-}
-
-/// api::prescription.prescription → table: prescriptions
-model Prescription {
-  id               Int       @id @default(autoincrement())
-  documentId       String    @unique @map("document_id")
-  deliveredAt      DateTime? @map("delivered_at") @db.Date
-  exercicesParJour Int?      @map("exercices_par_jour")
-  isActive         Boolean?  @map("is_active")
-  publishedAt      DateTime? @map("published_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-
-  praticienCreatorId Int?       @map("praticien_creator_id")
-  praticien_creator  Praticien? @relation("praticien_creator", fields: [praticienCreatorId], references: [id])
-
-  suiviPatientId Int?          @map("suivi_patient_id")
-  suivi_patient  SuiviPatient? @relation(fields: [suiviPatientId], references: [id])
-
-  exercices ExerciceElement[]
-  parcours  Parcours[]
-
-  @@map("prescriptions")
-}
-
-/// api::page-statique.page-statique → table: page_statiques
-model PageStatique {
-  id            Int       @id @default(autoincrement())
-  documentId    String    @unique @map("document_id")
-  nom           String?
-  slug          String?
-  contenu       String?
-  date_modified DateTime? @map("date_modified") @db.Date
-  publishedAt   DateTime? @map("published_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-
-  @@map("page_statiques")
-}
-
-// ============================================================
-// COMPOSANTS STRAPI (tables séparées)
-// ============================================================
-
-/// element.exercice-element → table: components_element_exercice_elements
-model ExerciceElement {
-  id         Int  @id @default(autoincrement())
-  repetition Int?
-  order      Int? @map("field_order")
-
-  exerciceId Int?      @map("exercice_id")
-  exercice   Exercice? @relation(fields: [exerciceId], references: [id])
-
-  prescriptionId Int?          @map("prescription_id")
-  prescription   Prescription? @relation(fields: [prescriptionId], references: [id])
-
-  @@map("components_element_exercice_elements")
-}
-
-/// element.liste-element → table: components_element_liste_elements
+/// Checklist d'items associée à un exercice — table: liste_elements
 model ListeElement {
   id      Int             @id @default(autoincrement())
   element String?
@@ -294,35 +230,19 @@ model ListeElement {
   exerciceId Int?      @map("exercice_id")
   exercice   Exercice? @relation(fields: [exerciceId], references: [id])
 
-  @@map("components_element_liste_elements")
+  @@map("liste_elements")
 }
 
-/// element.parcours-element → table: components_element_parcours_elements
-model ParcoursElement {
-  id     Int      @id @default(autoincrement())
-  isDone Boolean? @map("is_done")
-  order  Int?     @map("field_order")
+/// Page de contenu statique — table: page_statiques
+model PageStatique {
+  id            Int       @id @default(autoincrement())
+  nom           String?
+  slug          String?
+  contenu       String?
+  date_modified DateTime? @map("date_modified") @db.Date
+  publishedAt   DateTime? @map("published_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  exerciceId Int?      @map("exercice_id")
-  exercice   Exercice? @relation(fields: [exerciceId], references: [id])
-
-  parcoursId Int?      @map("parcours_id")
-  parcours   Parcours? @relation(fields: [parcoursId], references: [id])
-
-  @@map("components_element_parcours_elements")
-}
-
-/// liste.parcours → table: components_liste_parcours
-model Parcours {
-  id     Int       @id @default(autoincrement())
-  date   DateTime? @db.Date
-  isDone Boolean?  @map("is_done")
-  order  Int?      @map("field_order")
-
-  prescriptionId Int?          @map("prescription_id")
-  prescription   Prescription? @relation(fields: [prescriptionId], references: [id])
-
-  exercices ParcoursElement[]
-
-  @@map("components_liste_parcours")
+  @@map("page_statiques")
 }

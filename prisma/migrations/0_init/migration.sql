@@ -23,35 +23,27 @@ CREATE TYPE "MacroExercice" AS ENUM ('AJUSTEMENT_100', 'HYGIENE_PHONATOIRE_200',
 CREATE TYPE "AxeExercice" AS ENUM ('AJUSTEMENT_100', 'REGULATION_ECHANGES_130', 'POSTURE_140', 'HYGIENE_ALIMENTAIRE_210', 'ECONOMIE_VOCALE_220', 'ECHAUFFEMENT_RECUPERATION_230', 'EXERCICES_SPECIFIQUES_240', 'PROPRIOCEPTION_ARTICULATOIRE_310', 'PRAXIES_SIMPLES_320', 'PRAXIES_COORDONNEES_330', 'RESPIRATION_410', 'RESPIRATION_AVANCEE_420', 'TONICITE_LABIALE_430', 'TONICITE_VELAIRE_440', 'TONICITE_LINGUALE_450', 'CONTROLE_HAUTEUR_510', 'PASSAGES_MECANISMES_520', 'CONTROLE_INTENSITE_530', 'DISSOCIATION_PARAMETRES_540', 'DYNAMIQUE_VOCALE_550', 'PRODUCTION_VOYELLES_610', 'PRODUCTION_CONSONNES_620', 'SYLLABES_PROCESSUS_630', 'TRAVAIL_PROSODIE_640', 'DIADOCOCINETIQUES_CONSONANTIQUES_710', 'DIADOCOCINETIQUES_VOCALIQUES_720', 'DIADOCOCINETIQUES_COORDONNEES_730', 'DIADOCOCINETIQUES_MOTS_740', 'PHRASES_FONCTIONNELLES_750');
 
 -- CreateTable
-CREATE TABLE "users" (
+CREATE TABLE "admin_users" (
     "id" SERIAL NOT NULL,
     "email" TEXT NOT NULL,
     "password_hash" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'admin',
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "admin_users_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "up_users" (
+CREATE TABLE "users" (
     "id" SERIAL NOT NULL,
-    "document_id" TEXT NOT NULL,
-    "username" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "password" TEXT,
+    "password_hash" TEXT NOT NULL,
     "nom" TEXT,
     "prenom" TEXT,
-    "provider" TEXT,
     "confirmed" BOOLEAN NOT NULL DEFAULT false,
-    "blocked" BOOLEAN NOT NULL DEFAULT false,
-    "profile_completed" BOOLEAN NOT NULL DEFAULT false,
     "user_type" "UserType" NOT NULL DEFAULT 'null',
-    "published_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "up_users_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -204,16 +196,10 @@ CREATE TABLE "components_liste_parcours" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "admin_users_email_key" ON "admin_users"("email");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
-
--- CreateIndex
-CREATE UNIQUE INDEX "up_users_document_id_key" ON "up_users"("document_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "up_users_username_key" ON "up_users"("username");
-
--- CreateIndex
-CREATE UNIQUE INDEX "up_users_email_key" ON "up_users"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "patients_document_id_key" ON "patients"("document_id");
@@ -243,10 +229,10 @@ CREATE UNIQUE INDEX "prescriptions_document_id_key" ON "prescriptions"("document
 CREATE UNIQUE INDEX "page_statiques_document_id_key" ON "page_statiques"("document_id");
 
 -- AddForeignKey
-ALTER TABLE "patients" ADD CONSTRAINT "patients_users_permissions_user_id_fkey" FOREIGN KEY ("users_permissions_user_id") REFERENCES "up_users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "patients" ADD CONSTRAINT "patients_users_permissions_user_id_fkey" FOREIGN KEY ("users_permissions_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "praticiens" ADD CONSTRAINT "praticiens_users_permissions_user_id_fkey" FOREIGN KEY ("users_permissions_user_id") REFERENCES "up_users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "praticiens" ADD CONSTRAINT "praticiens_users_permissions_user_id_fkey" FOREIGN KEY ("users_permissions_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "suivi_patients" ADD CONSTRAINT "suivi_patients_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -1,56 +1,81 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { createUserSchema } from "@/lib/validate"
 import bcrypt from "bcryptjs"
+import { z } from "zod"
 
-export async function GET() {
+const createSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  nom: z.string().nullable().optional(),
+  prenom: z.string().nullable().optional(),
+  user_type: z.enum(["NONE", "PATIENT", "PRATICIEN"]).optional(),
+})
+
+export async function POST(req: Request) {
   const session = await auth()
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  const body = await req.json()
+  const parsed = createSchema.safeParse(body)
+  if (!parsed.success) {
+    const first = parsed.error.errors[0]
+    const msg = first ? `${first.path.join(".")}: ${first.message}` : "Invalid input"
+    return Response.json({ error: msg }, { status: 400 })
   }
 
+  const { password, ...rest } = parsed.data
+  const passwordHash = await bcrypt.hash(password, 10)
+
   try {
-    const users = await prisma.adminUser.findMany({
-      select: { id: true, email: true, role: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
+    const user = await prisma.user.create({
+      data: { passwordHash, ...rest },
     })
-    return Response.json(users)
-  } catch {
+    return Response.json({ id: user.id }, { status: 201 })
+  } catch (err) {
+    console.error("[POST /api/users]", err)
+    if (err instanceof Error && "code" in err && err.code === "P2002") {
+      return Response.json({ error: "Email déjà utilisé" }, { status: 409 })
+    }
     return Response.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   const session = await auth()
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 })
-  }
-
-  const parsed = createUserSchema.safeParse(body)
-  if (!parsed.success) {
-    return Response.json({ error: "Invalid input" }, { status: 400 })
-  }
-
-  const { email, password, role } = parsed.data
-  const passwordHash = await bcrypt.hash(password, 12)
+  const { searchParams } = new URL(req.url)
+  const q = searchParams.get("q")?.trim() ?? ""
+  const typeParam = searchParams.get("type")
 
   try {
-    const user = await prisma.adminUser.create({
-      data: { email, passwordHash, role },
-      select: { id: true, email: true, role: true, createdAt: true },
+    const users = await prisma.user.findMany({
+      where: {
+        ...(typeParam ? { user_type: typeParam as "NONE" | "PATIENT" | "PRATICIEN" } : {}),
+        ...(q
+          ? {
+              OR: [
+                { nom: { contains: q, mode: "insensitive" } },
+                { prenom: { contains: q, mode: "insensitive" } },
+                { email: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        email: true,
+        nom: true,
+        prenom: true,
+        user_type: true,
+        confirmed: true,
+        profil_patient: { select: { id: true, praticienId: true } },
+      },
+      orderBy: [{ nom: "asc" }, { prenom: "asc" }],
+      ...(q ? { take: 20 } : {}),
     })
-    return Response.json(user, { status: 201 })
-  } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === "P2002") {
-      return Response.json({ error: "Email already exists" }, { status: 409 })
-    }
+    return Response.json(users)
+  } catch {
     return Response.json({ error: "Internal server error" }, { status: 500 })
   }
 }
