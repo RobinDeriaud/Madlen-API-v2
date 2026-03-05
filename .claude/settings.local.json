@@ -5,7 +5,10 @@
       "Bash(npm uninstall postgres)",
       "Bash(npm install)",
       "Bash(head -50 /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-API-v2/app/api/auth/[...nextauth]/route.ts)",
-      "Bash(npm install swagger-ui-react @types/swagger-ui-react)"
+      "Bash(npm install swagger-ui-react @types/swagger-ui-react)",
+      "Bash(npx prisma migrate deploy)",
+      "Bash(npx tsx -e \"import { swaggerSpec } from ''./lib/swagger''; console.log\\(''OK, paths:'', Object.keys\\(swaggerSpec.paths\\).length\\)\")",
+      "Bash(npx prisma migrate dev --name add_email_change_fields)"
     ]
   }
 }

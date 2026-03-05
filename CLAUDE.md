@@ -254,3 +254,43 @@ Ne pas importer `Prisma` depuis `@prisma/client`. Utiliser :
   if (err instanceof Error && "code" in err && err.code === "P2002") { ... }
 }
 ```
+
+---
+
+## Repo associé : Madlen-Site
+
+Ce repo API est consommé par le site frontend situé dans le **repo voisin** :
+- **Chemin local** : `../Madlen-Site`
+- **Repo GitHub** : https://github.com/AMS-Logophonie/Madlen-Site
+- **Production** : https://madlen.app
+
+### Relation API ↔ Site
+
+Le site Next.js appelle ce backend via ses propres API routes internes (pattern BFF) :
+```
+Client Browser → Madlen-Site /api/* → Madlen-API-v2 /api/* → PostgreSQL
+```
+
+Le site gère sa propre authentification JWT (stockée en localStorage + cookie).
+Ce backend utilise NextAuth avec sessions JWT pour le dashboard admin uniquement.
+
+### Contexte de migration
+- **Ancien backend** : Strapi (encore en production sur `https://api.madlen.app`)
+- **Nouveau backend** : Ce repo (`Madlen-API-v2`) — remplace Strapi progressivement
+- Le `Madlen-Site` pointe encore vers Strapi (`NEXT_PUBLIC_STRAPI_API_URL`) pendant la migration
+
+### Types partagés
+Les modèles Prisma (`prisma/schema.prisma`) correspondent aux types TypeScript du site :
+- `prisma.User` (table `up_users`) → `types/user.ts` dans Madlen-Site
+- `prisma.Patient` (table `patients`) → `types/profile.ts`
+- `prisma.Praticien` (table `praticiens`) → `types/profile.ts`
+- `prisma.Exercice` (table `exercices`) → `types/exercice.ts`
+- `prisma.Prescription` (table `prescriptions`) → `types/prescription.ts`
+- `prisma.SuiviPatient` (table `suivi_patients`) → `types/patients.ts`
+
+### Pour lire le code du site depuis ici
+```bash
+# Lire un fichier du site sans changer de répertoire
+cat ../Madlen-Site/services/auth.ts
+ls ../Madlen-Site/app/api/
+```

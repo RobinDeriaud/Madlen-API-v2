@@ -48,6 +48,12 @@ enum ReponseElement {
   NON  @map("non")
 }
 
+enum PraticienConfirmStatus {
+  PENDING   @map("pending")
+  CONFIRMED @map("confirmed")
+  REFUSED   @map("refused")
+}
+
 enum OutilExercice {
   SPECTROGRAMME @map("spectrogramme")
   PROSODIE      @map("prosodie")
@@ -118,10 +124,15 @@ model User {
   passwordHash String   @map("password_hash")
   nom          String?
   prenom       String?
-  confirmed           Boolean   @default(false)
-  emailConfirmToken   String?   @map("email_confirm_token")
-  emailConfirmExpiry  DateTime? @map("email_confirm_expiry")
-  user_type           UserType  @default(NONE) @map("user_type")
+  confirmed              Boolean   @default(false)
+  emailConfirmToken      String?   @map("email_confirm_token")
+  emailConfirmExpiry     DateTime? @map("email_confirm_expiry")
+  passwordResetToken     String?   @map("password_reset_token")
+  passwordResetExpiry    DateTime? @map("password_reset_expiry")
+  emailChangeToken       String?   @map("email_change_token")
+  emailChangeExpiry      DateTime? @map("email_change_expiry")
+  emailChangeNewEmail    String?   @map("email_change_new_email")
+  user_type              UserType  @default(NONE) @map("user_type")
 
   profil_patient   Patient?
   profil_praticien Praticien?
@@ -159,8 +170,9 @@ model Patient {
   user   User? @relation(fields: [userId], references: [id])
 
   /// Praticien référent (un seul par patient)
-  praticienId Int?       @map("praticien_id")
-  praticien   Praticien? @relation(fields: [praticienId], references: [id])
+  praticienId          Int?       @map("praticien_id")
+  praticien            Praticien? @relation(fields: [praticienId], references: [id])
+  praticienConfirmStatus PraticienConfirmStatus @default(PENDING) @map("praticien_confirm_status")
 
   /// Listes d'exercices prescrites à ce patient
   listes Liste[]

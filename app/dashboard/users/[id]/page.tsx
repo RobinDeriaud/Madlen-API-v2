@@ -10,10 +10,13 @@ import { MACRO_CONFIG, MacroBadge } from "@/lib/macro"
 type UserType = "NONE" | "PATIENT" | "PRATICIEN"
 type Sexe = "FEMININ" | "MASCULIN"
 
+type PraticienConfirmStatus = "PENDING" | "CONFIRMED" | "REFUSED"
+
 type PatientSummary = {
   id: number
   age: number | null
   sexe: Sexe | null
+  praticienConfirmStatus: PraticienConfirmStatus
   user: {
     id: number
     nom: string | null
@@ -30,6 +33,13 @@ type PatientSearchResult = {
   email: string
   confirmed: boolean
   profil_patient: { id: number; praticienId: number | null } | null
+}
+
+type PraticienSearchResult = {
+  id: number
+  nom: string | null
+  prenom: string | null
+  email: string
 }
 
 type ExerciceOption = {
@@ -59,6 +69,7 @@ type UserData = {
     id: number
     age: number | null
     sexe: Sexe | null
+    praticienConfirmStatus: PraticienConfirmStatus
     praticien: {
       id: number
       user: { id: number; nom: string | null; prenom: string | null; email: string } | null
@@ -656,14 +667,120 @@ function ConfirmDeleteModal({ displayName, onClose, onConfirm, deleting }: {
   )
 }
 
+// ─── Confirm Remove Praticien Modal ──────────────────────────────────────────
+
+function ConfirmRemovePraticienModal({ praticienName, onClose, onConfirm, removing }: {
+  praticienName: string
+  onClose: () => void
+  onConfirm: () => void
+  removing: boolean
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape" && !removing) onClose() }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [onClose, removing])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
+      onClick={() => !removing && onClose()}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-bold text-gray-800">Retirer ce praticien ?</h2>
+        <p className="text-sm text-gray-600">
+          Vous êtes sur le point de dissocier{" "}
+          <strong className="text-gray-900">{praticienName}</strong> de ce patient.
+          Le patient devra confirmer à nouveau si un praticien lui est réassigné.
+        </p>
+        <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={removing}
+            className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+          >
+            {removing ? "Retrait…" : "Retirer"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={removing}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
+          >
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Confirm Remove Patient Modal ────────────────────────────────────────────
+
+function ConfirmRemovePatientModal({ patientName, onClose, onConfirm, removing }: {
+  patientName: string
+  onClose: () => void
+  onConfirm: () => void
+  removing: boolean
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape" && !removing) onClose() }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [onClose, removing])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
+      onClick={() => !removing && onClose()}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-bold text-gray-800">Retirer ce patient ?</h2>
+        <p className="text-sm text-gray-600">
+          Vous êtes sur le point de dissocier{" "}
+          <strong className="text-gray-900">{patientName}</strong> de ce praticien.
+          Le patient ne sera pas supprimé, mais devra confirmer à nouveau si vous le réassignez.
+        </p>
+        <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={removing}
+            className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+          >
+            {removing ? "Retrait…" : "Retirer"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={removing}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
+          >
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Confirm Activate Liste Modal ────────────────────────────────────────────
 
 function ConfirmActivateListeModal({ listeNom, onClose, onConfirm, activating }: {
   listeNom: string | null
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: (notifyPatient: boolean) => void
   activating: boolean
 }) {
+  const [notify, setNotify] = useState(false)
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape" && !activating) onClose() }
     document.addEventListener("keydown", onKey)
@@ -684,10 +801,20 @@ function ConfirmActivateListeModal({ listeNom, onClose, onConfirm, activating }:
           La liste <strong className="text-gray-900">{listeNom ?? "Sans nom"}</strong> deviendra
           la liste active. Toutes les autres listes de ce patient seront désactivées.
         </p>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={notify}
+            onChange={(e) => setNotify(e.target.checked)}
+            disabled={activating}
+            className="w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500"
+          />
+          <span className="text-sm text-gray-700">Notifier le patient par e-mail</span>
+        </label>
         <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={() => onConfirm(notify)}
             disabled={activating}
             className="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50"
           >
@@ -796,6 +923,7 @@ function UserEditInner() {
   const [patients, setPatients] = useState<PatientSummary[]>([])
   const [hasPraticienProfile, setHasPraticienProfile] = useState(false)
   const [removing, setRemoving] = useState<Set<number>>(new Set())
+  const [confirmingRemovePatient, setConfirmingRemovePatient] = useState<{ id: number; name: string } | null>(null)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<PatientSearchResult[]>([])
@@ -804,6 +932,19 @@ function UserEditInner() {
   const [addError, setAddError] = useState<string | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchContainerRef = useRef<HTMLDivElement>(null)
+
+  const [patientProfileId, setPatientProfileId] = useState<number | null>(null)
+  const [patientPraticienConfirmStatus, setPatientPraticienConfirmStatus] = useState<PraticienConfirmStatus | null>(null)
+  const [praticienSearchQuery, setPraticienSearchQuery] = useState("")
+  const [praticienSearchResults, setPraticienSearchResults] = useState<PraticienSearchResult[]>([])
+  const [praticienSearching, setPraticienSearching] = useState(false)
+  const [showPraticienDropdown, setShowPraticienDropdown] = useState(false)
+  const [praticienAssignError, setPraticienAssignError] = useState<string | null>(null)
+  const [assigningPraticien, setAssigningPraticien] = useState(false)
+  const [removingPraticien, setRemovingPraticien] = useState(false)
+  const [confirmingRemovePraticien, setConfirmingRemovePraticien] = useState(false)
+  const praticienSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const praticienSearchContainerRef = useRef<HTMLDivElement>(null)
 
   const [listes, setListes] = useState<Liste[]>([])
   const [listesLoading, setListesLoading] = useState(false)
@@ -848,6 +989,8 @@ function UserEditInner() {
             age: data.profil_patient.age != null ? String(data.profil_patient.age) : "",
             sexe: data.profil_patient.sexe ?? "",
           })
+          setPatientProfileId(data.profil_patient.id)
+          setPatientPraticienConfirmStatus(data.profil_patient.praticienConfirmStatus)
           if (data.profil_patient.praticien?.user) {
             const u = data.profil_patient.praticien.user
             setAssignedPraticien({ userId: u.id, nom: u.nom, prenom: u.prenom, email: u.email })
@@ -897,6 +1040,9 @@ function UserEditInner() {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
         setShowDropdown(false)
       }
+      if (praticienSearchContainerRef.current && !praticienSearchContainerRef.current.contains(e.target as Node)) {
+        setShowPraticienDropdown(false)
+      }
     }
     document.addEventListener("mousedown", onClickOutside)
     return () => document.removeEventListener("mousedown", onClickOutside)
@@ -926,6 +1072,72 @@ function UserEditInner() {
     }, 300)
   }
 
+  function handlePraticienSearchChange(q: string) {
+    setPraticienSearchQuery(q)
+    setPraticienAssignError(null)
+    if (praticienSearchTimerRef.current) clearTimeout(praticienSearchTimerRef.current)
+    if (!q.trim()) {
+      setPraticienSearchResults([])
+      setShowPraticienDropdown(false)
+      return
+    }
+    praticienSearchTimerRef.current = setTimeout(async () => {
+      setPraticienSearching(true)
+      try {
+        const r = await fetch(`/api/users?type=PRATICIEN&q=${encodeURIComponent(q)}`)
+        if (!r.ok) return
+        const data: PraticienSearchResult[] = await r.json()
+        setPraticienSearchResults(data.filter((u) => u.id !== assignedPraticien?.userId))
+        setShowPraticienDropdown(true)
+      } finally {
+        setPraticienSearching(false)
+      }
+    }, 300)
+  }
+
+  async function handleAssignPraticien(result: PraticienSearchResult) {
+    setPraticienAssignError(null)
+    setAssigningPraticien(true)
+    try {
+      const res = await fetch(`/api/users/${result.id}/patients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userPatientId: parseInt(id) }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setPraticienAssignError(data.error ?? "Erreur lors de l'assignation.")
+        return
+      }
+      setAssignedPraticien({ userId: result.id, nom: result.nom, prenom: result.prenom, email: result.email })
+      setPatientPraticienConfirmStatus("PENDING")
+      setPraticienSearchQuery("")
+      setPraticienSearchResults([])
+      setShowPraticienDropdown(false)
+    } finally {
+      setAssigningPraticien(false)
+    }
+  }
+
+  async function handleRemovePraticien() {
+    if (!assignedPraticien || patientProfileId === null) return
+    setRemovingPraticien(true)
+    try {
+      const res = await fetch(`/api/users/${assignedPraticien.userId}/patients`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientId: patientProfileId }),
+      })
+      if (res.ok) {
+        setAssignedPraticien(null)
+        setPatientPraticienConfirmStatus(null)
+        setConfirmingRemovePraticien(false)
+      }
+    } finally {
+      setRemovingPraticien(false)
+    }
+  }
+
   async function handleAddPatient(result: PatientSearchResult) {
     setAddError(null)
     const res = await fetch(`/api/users/${id}/patients`, {
@@ -945,6 +1157,7 @@ function UserEditInner() {
         id: patientId,
         age: null,
         sexe: null,
+        praticienConfirmStatus: "PENDING" as PraticienConfirmStatus,
         user: { id: result.id, nom: result.nom, prenom: result.prenom, email: result.email, confirmed: result.confirmed },
       },
     ])
@@ -1011,7 +1224,7 @@ function UserEditInner() {
     setSaving(false)
   }
 
-  async function handleActivateListe() {
+  async function handleActivateListe(notifyPatient: boolean) {
     if (!confirmingActivate || activatingListeId !== null) return
     const listeId = confirmingActivate.id
     setActivatingListeId(listeId)
@@ -1019,7 +1232,7 @@ function UserEditInner() {
       const res = await fetch(`/api/users/${id}/listes/${listeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: true }),
+        body: JSON.stringify({ isActive: true, notifyPatient }),
       })
       if (res.ok) {
         setListes((prev) => prev.map((l) => ({ ...l, isActive: l.id === listeId })))
@@ -1227,6 +1440,7 @@ function UserEditInner() {
                       <th className="text-left py-2 pl-3 pr-4 font-semibold text-gray-500 w-36">Nom</th>
                       <th className="text-left py-2 pr-4 font-semibold text-gray-500 w-36">Prénom</th>
                       <th className="text-left py-2 pr-4 font-semibold text-gray-500">Email</th>
+                      <th className="text-left py-2 pr-4 font-semibold text-gray-500 w-32">Statut</th>
                       <th className="py-2 pr-3 w-16" />
                     </tr>
                   </thead>
@@ -1255,11 +1469,30 @@ function UserEditInner() {
                           {p.user?.email ?? "—"}
                         </td>
 
+                        <td className="py-2 pr-4">
+                          {p.praticienConfirmStatus === "CONFIRMED" ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                              Confirmé
+                            </span>
+                          ) : p.praticienConfirmStatus === "REFUSED" ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                              Refusé
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                              En attente
+                            </span>
+                          )}
+                        </td>
+
                         <td className="py-2 pr-3 text-right">
                           <button
                             type="button"
                             disabled={removing.has(p.id)}
-                            onClick={() => handleRemovePatient(p.id)}
+                            onClick={() => setConfirmingRemovePatient({
+                              id: p.id,
+                              name: [p.user?.prenom, p.user?.nom].filter(Boolean).join(" ") || p.user?.email || `Patient #${p.id}`,
+                            })}
                             className="text-xs text-gray-400 hover:text-red-500 disabled:opacity-40 transition-colors"
                           >
                             {removing.has(p.id) ? "…" : "Retirer"}
@@ -1322,18 +1555,84 @@ function UserEditInner() {
       {validTab === "suivi" && (
         <div className="flex flex-col gap-4">
           <SectionTitle>Praticien référent</SectionTitle>
-          {assignedPraticien ? (
-            <button
-              type="button"
-              onClick={() => router.push(`/dashboard/users/${assignedPraticien.userId}`)}
-              className="text-left text-sm text-gray-800 hover:underline underline-offset-2 w-fit"
-            >
-              {[assignedPraticien.prenom, assignedPraticien.nom].filter(Boolean).join(" ") || assignedPraticien.email}
-              <span className="text-gray-400 ml-2 text-xs">{assignedPraticien.email}</span>
-            </button>
-          ) : (
-            <span className="text-sm text-gray-400">Aucun praticien assigné</span>
+
+          {assignedPraticien && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/dashboard/users/${assignedPraticien.userId}`)}
+                  className="text-left text-sm text-gray-800 hover:underline underline-offset-2"
+                >
+                  {[assignedPraticien.prenom, assignedPraticien.nom].filter(Boolean).join(" ") || assignedPraticien.email}
+                  <span className="text-gray-400 ml-2 text-xs">{assignedPraticien.email}</span>
+                </button>
+                {patientPraticienConfirmStatus === "CONFIRMED" ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                    Confirmé
+                  </span>
+                ) : patientPraticienConfirmStatus === "REFUSED" ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                    Refusé
+                  </span>
+                ) : patientPraticienConfirmStatus === "PENDING" ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                    En attente
+                  </span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmingRemovePraticien(true)}
+                disabled={removingPraticien}
+                className="text-xs text-gray-400 hover:text-red-500 disabled:opacity-40 transition-colors shrink-0 ml-3"
+              >
+                Retirer
+              </button>
+            </div>
           )}
+
+          <div ref={praticienSearchContainerRef} className="relative">
+            <input
+              type="text"
+              placeholder={assignedPraticien ? "Changer de praticien…" : "Rechercher un praticien à assigner…"}
+              value={praticienSearchQuery}
+              onChange={(e) => handlePraticienSearchChange(e.target.value)}
+              onFocus={() => praticienSearchResults.length > 0 && setShowPraticienDropdown(true)}
+              onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+              disabled={assigningPraticien}
+              className={inputCls + " disabled:opacity-50"}
+            />
+            {praticienSearching && (
+              <p className="text-xs text-gray-400 mt-1">Recherche…</p>
+            )}
+            {assigningPraticien && (
+              <p className="text-xs text-gray-400 mt-1">Assignation…</p>
+            )}
+            {!praticienSearching && praticienSearchQuery.trim() && !showPraticienDropdown && praticienSearchResults.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1">Aucun praticien trouvé.</p>
+            )}
+            {praticienAssignError && (
+              <p className="text-xs text-red-500 mt-1">{praticienAssignError}</p>
+            )}
+            {showPraticienDropdown && praticienSearchResults.length > 0 && (
+              <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg max-h-56 overflow-y-auto">
+                {praticienSearchResults.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => handleAssignPraticien(r)}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm border-b border-gray-100 last:border-0"
+                  >
+                    <span className="font-medium text-gray-800">
+                      {[r.prenom, r.nom].filter(Boolean).join(" ") || r.email}
+                    </span>
+                    <span className="text-gray-400 text-xs">{r.email}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center justify-between pt-2">
             <SectionTitle>Listes</SectionTitle>
@@ -1470,6 +1769,25 @@ function UserEditInner() {
           onClose={() => setConfirmingDeleteListe(null)}
           onConfirm={handleDeleteListe}
           deleting={deletingListeId !== null}
+        />
+      )}
+      {confirmingRemovePraticien && assignedPraticien && (
+        <ConfirmRemovePraticienModal
+          praticienName={[assignedPraticien.prenom, assignedPraticien.nom].filter(Boolean).join(" ") || assignedPraticien.email}
+          onClose={() => !removingPraticien && setConfirmingRemovePraticien(false)}
+          onConfirm={handleRemovePraticien}
+          removing={removingPraticien}
+        />
+      )}
+      {confirmingRemovePatient !== null && (
+        <ConfirmRemovePatientModal
+          patientName={confirmingRemovePatient.name}
+          onClose={() => !removing.has(confirmingRemovePatient.id) && setConfirmingRemovePatient(null)}
+          onConfirm={async () => {
+            await handleRemovePatient(confirmingRemovePatient.id)
+            setConfirmingRemovePatient(null)
+          }}
+          removing={removing.has(confirmingRemovePatient.id)}
         />
       )}
       {showDeleteModal && (

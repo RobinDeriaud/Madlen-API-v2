@@ -1,0 +1,81 @@
+import { SignJWT, jwtVerify } from "jose"
+import type { Patient, Praticien, User, UserType } from "@prisma/client"
+
+const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET)
+const ALG = "HS256"
+
+export async function signUserJwt(payload: { sub: string; email: string }) {
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: ALG })
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .sign(secret)
+}
+
+export async function verifyUserJwt(
+  token: string
+): Promise<{ sub: string; email: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, secret)
+    return payload as { sub: string; email: string }
+  } catch {
+    return null
+  }
+}
+
+type PraticienConfirmPayload = {
+  patientUserId: number
+  praticienId: number
+  type: "praticien-confirmation"
+}
+
+export async function signPraticienConfirmJwt(payload: {
+  patientUserId: number
+  praticienId: number
+}) {
+  return new SignJWT({ ...payload, type: "praticien-confirmation" } satisfies PraticienConfirmPayload)
+    .setProtectedHeader({ alg: ALG })
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(secret)
+}
+
+export async function verifyPraticienConfirmJwt(
+  token: string
+): Promise<PraticienConfirmPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, secret)
+    if (payload.type !== "praticien-confirmation") return null
+    return payload as unknown as PraticienConfirmPayload
+  } catch {
+    return null
+  }
+}
+
+type UserWithProfiles = User & {
+  profil_patient: Patient | null
+  profil_praticien: Praticien | null
+}
+
+function toSiteUserType(userType: UserType): "patient" | "praticien" | null {
+  if (userType === "PATIENT") return "patient"
+  if (userType === "PRATICIEN") return "praticien"
+  return null
+}
+
+export function normalizeUser(user: UserWithProfiles) {
+  return {
+    id: user.id,
+    username: user.email,
+    email: user.email,
+    provider: "local",
+    confirmed: user.confirmed,
+    blocked: false,
+    nom: user.nom,
+    prenom: user.prenom,
+    user_type: toSiteUserType(user.user_type),
+    profile_completed: user.user_type !== "NONE",
+    profil_patient: user.profil_patient ?? null,
+    profil_praticien: user.profil_praticien ?? null,
+  }
+}

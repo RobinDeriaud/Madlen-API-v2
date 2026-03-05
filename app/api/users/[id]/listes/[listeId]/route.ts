@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { sendListeActivatedEmail } from "@/lib/mailer"
 import { z } from "zod"
 
 const updateListeSchema = z.object({
@@ -7,6 +8,7 @@ const updateListeSchema = z.object({
   date: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
   exerciceIds: z.array(z.number().int()).optional(),
+  notifyPatient: z.boolean().optional(),
 })
 
 export async function GET(
@@ -70,7 +72,7 @@ export async function PUT(
     })
     if (!existing) return Response.json({ error: "Liste introuvable" }, { status: 404 })
 
-    const { nom, date, isActive, exerciceIds } = parsed.data
+    const { nom, date, isActive, exerciceIds, notifyPatient } = parsed.data
     const patientId = user.profil_patient.id
 
     const liste = await prisma.$transaction(async (tx) => {
@@ -94,8 +96,17 @@ export async function PUT(
               }
             : {}),
         },
+        include: {
+          exercices: { select: { id: true, numero: true, nom: true, macro: true } },
+        },
       })
     })
+
+    if (isActive === true && notifyPatient === true && user.email) {
+      const patientNom = [user.prenom, user.nom].filter(Boolean).join(" ") || user.email
+      const listeNom = liste.nom ?? "Sans nom"
+      sendListeActivatedEmail(user.email, patientNom, listeNom, liste.date, liste.exercices).catch(() => {})
+    }
 
     return Response.json({ id: liste.id })
   } catch (err) {
