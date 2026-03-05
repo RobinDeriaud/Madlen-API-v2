@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 
   try {
     const exercice = await prisma.exercice.create({
-      data: { documentId: crypto.randomUUID(), ...parsed.data },
+      data: { ...parsed.data },
     })
     return Response.json(exercice, { status: 201 })
   } catch (err) {

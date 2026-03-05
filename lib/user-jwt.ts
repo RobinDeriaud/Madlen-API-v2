@@ -52,6 +52,37 @@ export async function verifyPraticienConfirmJwt(
   }
 }
 
+type SuiviConfirmPayload = {
+  suiviPatientId: number
+  patientUserId: number
+  praticienId: number
+  type: "suivi-confirmation"
+}
+
+export async function signSuiviConfirmJwt(payload: {
+  suiviPatientId: number
+  patientUserId: number
+  praticienId: number
+}) {
+  return new SignJWT({ ...payload, type: "suivi-confirmation" } satisfies SuiviConfirmPayload)
+    .setProtectedHeader({ alg: ALG })
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(secret)
+}
+
+export async function verifySuiviConfirmJwt(
+  token: string
+): Promise<SuiviConfirmPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, secret)
+    if (payload.type !== "suivi-confirmation") return null
+    return payload as unknown as SuiviConfirmPayload
+  } catch {
+    return null
+  }
+}
+
 type UserWithProfiles = User & {
   profil_patient: Patient | null
   profil_praticien: Praticien | null
@@ -61,6 +92,18 @@ function toSiteUserType(userType: UserType): "patient" | "praticien" | null {
   if (userType === "PATIENT") return "patient"
   if (userType === "PRATICIEN") return "praticien"
   return null
+}
+
+const sexeMap: Record<string, string> = {
+  FEMININ: "féminin",
+  MASCULIN: "masculin",
+}
+
+function normalizePatient(patient: Patient) {
+  return {
+    ...patient,
+    sexe: patient.sexe ? (sexeMap[patient.sexe] ?? patient.sexe) : patient.sexe,
+  }
 }
 
 export function normalizeUser(user: UserWithProfiles) {
@@ -75,7 +118,7 @@ export function normalizeUser(user: UserWithProfiles) {
     prenom: user.prenom,
     user_type: toSiteUserType(user.user_type),
     profile_completed: user.user_type !== "NONE",
-    profil_patient: user.profil_patient ?? null,
+    profil_patient: user.profil_patient ? normalizePatient(user.profil_patient) : null,
     profil_praticien: user.profil_praticien ?? null,
   }
 }

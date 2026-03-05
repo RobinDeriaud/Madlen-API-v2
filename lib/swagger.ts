@@ -151,6 +151,139 @@ export const swaggerSpec = {
           },
         },
       },
+      ExerciceFull: {
+        type: "object",
+        description: "Exercice complet avec listeElements et audioFiles",
+        properties: {
+          id: { type: "integer" },
+          documentId: { type: "string", format: "uuid" },
+          numero: { type: "integer", nullable: true },
+          nom: { type: "string", nullable: true },
+          sigle: { type: "string", nullable: true },
+          bref: { type: "string", nullable: true },
+          but: { type: "string", nullable: true },
+          instructions: { type: "string", nullable: true },
+          astuce: { type: "string", nullable: true },
+          commentaires: { type: "string", nullable: true },
+          axe: { type: "string", nullable: true },
+          macro: { type: "string", nullable: true },
+          outil: { type: "string", nullable: true },
+          outil_param: { type: "string", nullable: true },
+          duree: { type: "integer" },
+          recurrence: { type: "string", nullable: true },
+          auteur: { type: "string", nullable: true },
+          boutons: { type: "array", items: { type: "string" }, nullable: true },
+          listeElements: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ListeElement" },
+          },
+          audioFiles: {
+            type: "array",
+            items: { $ref: "#/components/schemas/AudioFile" },
+          },
+        },
+      },
+      AudioFile: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          url: { type: "string" },
+          mime: { type: "string", nullable: true },
+          size: { type: "number", nullable: true },
+          ext: { type: "string", nullable: true },
+          exerciceNumero: { type: "integer", nullable: true },
+          uploadDate: { type: "string", format: "date-time" },
+        },
+      },
+      ListeElement: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          element: { type: "string", nullable: true },
+          reponse: { type: "string", enum: ["NULL", "OUI", "NON"] },
+          order: { type: "integer" },
+          exerciceId: { type: "integer" },
+        },
+      },
+      SuiviPatient: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          isConfirmed: { type: "boolean" },
+          archived: { type: "boolean" },
+          actif: { type: "boolean" },
+          dateDebutSuivi: { type: "string", format: "date-time", nullable: true },
+          createdAt: { type: "string", format: "date-time" },
+          patient: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              user: {
+                type: "object",
+                properties: {
+                  id: { type: "integer" },
+                  email: { type: "string", format: "email" },
+                  nom: { type: "string", nullable: true },
+                  prenom: { type: "string", nullable: true },
+                },
+              },
+            },
+          },
+          praticien: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              user: {
+                type: "object",
+                properties: {
+                  id: { type: "integer" },
+                  email: { type: "string", format: "email" },
+                  nom: { type: "string", nullable: true },
+                  prenom: { type: "string", nullable: true },
+                },
+              },
+            },
+          },
+        },
+      },
+      Prescription: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          isActive: { type: "boolean" },
+          deliveredAt: { type: "string", format: "date-time", nullable: true },
+          exercicesParJour: { type: "integer", nullable: true },
+          exercices: { type: "array", items: {} },
+          parcours: { type: "array", items: {} },
+          createdAt: { type: "string", format: "date-time" },
+          praticienCreator: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              user: {
+                type: "object",
+                properties: {
+                  id: { type: "integer" },
+                  nom: { type: "string", nullable: true },
+                  prenom: { type: "string", nullable: true },
+                },
+              },
+            },
+          },
+          suiviPatient: { $ref: "#/components/schemas/SuiviPatient" },
+        },
+      },
+      PageStatique: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          slug: { type: "string", nullable: true },
+          titre: { type: "string", nullable: true },
+          contenu: { type: "string", nullable: true },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
     },
     responses: {
       Unauthorized: {
@@ -622,17 +755,6 @@ export const swaggerSpec = {
           "500": { $ref: "#/components/responses/InternalError" },
         },
       },
-      delete: {
-        summary: "Supprimer un exercice",
-        tags: ["Exercices"],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
-        responses: {
-          "200": { description: "Supprimé" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "404": { $ref: "#/components/responses/NotFound" },
-          "500": { $ref: "#/components/responses/InternalError" },
-        },
-      },
     },
     "/exercices/{id}/liste-elements": {
       get: {
@@ -640,7 +762,51 @@ export const swaggerSpec = {
         tags: ["Exercices"],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
         responses: {
-          "200": { description: "Liste des éléments" },
+          "200": {
+            description: "Liste des éléments",
+            content: {
+              "application/json": {
+                schema: { type: "array", items: { $ref: "#/components/schemas/ListeElement" } },
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      put: {
+        summary: "Remplacer les éléments de liste d'un exercice",
+        description: "Supprime tous les éléments existants et les remplace par le tableau fourni.",
+        tags: ["Exercices"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    element: { type: "string", nullable: true },
+                    reponse: { type: "string", enum: ["NULL", "OUI", "NON"] },
+                    order: { type: "integer" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Éléments mis à jour",
+            content: {
+              "application/json": {
+                schema: { type: "array", items: { $ref: "#/components/schemas/ListeElement" } },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/BadRequest" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "500": { $ref: "#/components/responses/InternalError" },
         },
@@ -1041,6 +1207,550 @@ export const swaggerSpec = {
           "401": { description: "Lien invalide ou expiré", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "404": { description: "Patient introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "409": { description: "Le lien ne correspond plus au praticien actuel", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    // ─── Routes publiques — Exercices ──────────────────────────────────────
+
+    "/public/exercices": {
+      get: {
+        summary: "Liste des exercices (paginée, filtrable)",
+        description: "Retourne les exercices avec listeElements et audioFiles. Supporte filtres par numero, macro, axe, bouton, recurrence, search et pagination.",
+        tags: ["Public — Exercices"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "id", in: "query", schema: { type: "integer" }, description: "Retourne un seul exercice par id" },
+          { name: "numero", in: "query", schema: { type: "integer" }, description: "Filtrer par numéro" },
+          { name: "macro", in: "query", schema: { type: "string" }, description: "Filtrer par macro" },
+          { name: "axe", in: "query", schema: { type: "string" }, description: "Filtrer par axe" },
+          { name: "bouton", in: "query", schema: { type: "string" }, description: "Filtrer par bouton (contenu dans le tableau boutons)" },
+          { name: "recurrence", in: "query", schema: { type: "string" }, description: "Filtrer par récurrence" },
+          { name: "search", in: "query", schema: { type: "string" }, description: "Recherche dans nom, auteur, sigle, bref" },
+          { name: "page", in: "query", schema: { type: "integer", default: 1 }, description: "Numéro de page" },
+          { name: "pageSize", in: "query", schema: { type: "integer", default: 25 }, description: "Taille de page (max 200)" },
+        ],
+        responses: {
+          "200": {
+            description: "Liste paginée d'exercices (ou un seul si id fourni)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: { type: "array", items: { $ref: "#/components/schemas/ExerciceFull" } },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        pagination: {
+                          type: "object",
+                          properties: {
+                            page: { type: "integer" },
+                            pageSize: { type: "integer" },
+                            pageCount: { type: "integer" },
+                            total: { type: "integer" },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    "/public/exercices/liste": {
+      get: {
+        summary: "Liste simplifiée des exercices",
+        description: "Retourne uniquement id, nom et numero de chaque exercice, triés par numéro.",
+        tags: ["Public — Exercices"],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Liste simplifiée",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "integer" },
+                          nom: { type: "string", nullable: true },
+                          numero: { type: "integer", nullable: true },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    "/public/exercices/audios": {
+      get: {
+        summary: "Fichiers audio des exercices",
+        description: "Retourne les fichiers audio. Filtrable par numéros d'exercice (liste séparée par virgules). Route publique sans authentification.",
+        tags: ["Public — Exercices"],
+        parameters: [
+          { name: "exerciceNumbers", in: "query", schema: { type: "string" }, description: "Numéros d'exercice séparés par virgules (ex: 101,201,305)" },
+        ],
+        responses: {
+          "200": {
+            description: "Liste des fichiers audio",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/AudioFile" },
+                    },
+                    total: { type: "integer" },
+                    requestedNumbers: { type: "array", items: { type: "integer" } },
+                  },
+                },
+              },
+            },
+          },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    // ─── Routes publiques — Patients ───────────────────────────────────────
+
+    "/public/patients/search": {
+      get: {
+        summary: "Rechercher un patient par email",
+        description: "Retourne le profil patient correspondant à l'email, avec les infos user associées.",
+        tags: ["Public — Patients"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "email", in: "query", required: true, schema: { type: "string", format: "email" }, description: "Email du patient recherché" },
+        ],
+        responses: {
+          "200": {
+            description: "Résultat (tableau vide si non trouvé)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "integer" },
+                          user: {
+                            type: "object",
+                            properties: {
+                              id: { type: "integer" },
+                              email: { type: "string", format: "email" },
+                              nom: { type: "string", nullable: true },
+                              prenom: { type: "string", nullable: true },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "400": { description: "Paramètre email requis", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    // ─── Routes publiques — Suivi Patients ─────────────────────────────────
+
+    "/public/suivi-patients": {
+      get: {
+        summary: "Liste des suivis de l'utilisateur",
+        description: "Retourne les suivis du praticien ou du patient connecté. Si `id` est fourni, retourne un seul suivi (avec vérification d'ownership).",
+        tags: ["Public — Suivi Patients"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "id", in: "query", schema: { type: "integer" }, description: "ID d'un suivi spécifique" },
+        ],
+        responses: {
+          "200": {
+            description: "Liste des suivis ou un seul suivi",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      oneOf: [
+                        { $ref: "#/components/schemas/SuiviPatient" },
+                        { type: "array", items: { $ref: "#/components/schemas/SuiviPatient" } },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Accès refusé", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      post: {
+        summary: "Créer un suivi patient",
+        description: "Seul un praticien peut créer un suivi. Vérifie qu'aucun suivi actif n'existe déjà pour ce patient avec ce praticien.",
+        tags: ["Public — Suivi Patients"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["patientId"],
+                properties: {
+                  patientId: { type: "integer", description: "ID du profil patient" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Suivi créé",
+            content: { "application/json": { schema: { type: "object", properties: { data: { $ref: "#/components/schemas/SuiviPatient" } } } } },
+          },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Seul un praticien peut créer un suivi", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { description: "Patient introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "409": { description: "Un suivi existe déjà pour ce patient", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      put: {
+        summary: "Modifier un suivi patient",
+        description: "Met à jour isConfirmed, archived ou dateDebutSuivi. Vérifie l'ownership (praticien ou patient du suivi).",
+        tags: ["Public — Suivi Patients"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["id"],
+                properties: {
+                  id: { type: "integer", description: "ID du suivi" },
+                  isConfirmed: { type: "boolean" },
+                  archived: { type: "boolean" },
+                  dateDebutSuivi: { type: "string", format: "date-time", nullable: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Suivi mis à jour",
+            content: { "application/json": { schema: { type: "object", properties: { data: { $ref: "#/components/schemas/SuiviPatient" } } } } },
+          },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Accès refusé", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    "/public/suivi-patients/send-invitation": {
+      post: {
+        summary: "Envoyer une invitation par email",
+        description: "Envoie un email d'invitation à un patient (par email) pour s'inscrire sur Madlen. Seul un praticien peut envoyer.",
+        tags: ["Public — Suivi Patients"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["patientEmail"],
+                properties: {
+                  patientEmail: { type: "string", format: "email", description: "Email du patient à inviter" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Invitation envoyée", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" } } } } } },
+          "400": { description: "Email invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Seul un praticien peut envoyer une invitation", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    "/public/suivi-patients/send-confirmation": {
+      post: {
+        summary: "Envoyer un email de confirmation de suivi",
+        description: "Envoie un email au patient avec un lien de confirmation du suivi. Seul le praticien du suivi peut envoyer.",
+        tags: ["Public — Suivi Patients"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["suiviPatientId"],
+                properties: {
+                  suiviPatientId: { type: "integer", description: "ID du suivi patient" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Email de confirmation envoyé", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" } } } } } },
+          "400": { description: "Données invalides ou patient sans email", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Accès refusé", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { description: "Suivi introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    "/public/suivi-patients/confirm": {
+      post: {
+        summary: "Confirmer un suivi (côté patient)",
+        description: "Le patient confirme le suivi via le token reçu par email. Met isConfirmed à true et dateDebutSuivi à maintenant. Notifie le praticien par email.",
+        tags: ["Public — Suivi Patients"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["token"],
+                properties: {
+                  token: { type: "string", description: "JWT de confirmation reçu par email" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Suivi confirmé",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    alreadyConfirmed: { type: "boolean", description: "true si déjà confirmé" },
+                  },
+                },
+              },
+            },
+          },
+          "400": { description: "Token de confirmation requis", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Token invalide ou expiré", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Ce lien ne vous est pas destiné", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { description: "Suivi introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "409": { description: "Le praticien a changé depuis l'envoi du lien", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    // ─── Routes publiques — Prescriptions ──────────────────────────────────
+
+    "/public/prescriptions": {
+      get: {
+        summary: "Liste des prescriptions",
+        description: "Retourne les prescriptions de l'utilisateur connecté. Filtrable par `id` (une seule) ou `suiviPatientId`. Ownership vérifié.",
+        tags: ["Public — Prescriptions"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "id", in: "query", schema: { type: "integer" }, description: "ID d'une prescription spécifique" },
+          { name: "suiviPatientId", in: "query", schema: { type: "integer" }, description: "ID du suivi pour filtrer les prescriptions" },
+        ],
+        responses: {
+          "200": {
+            description: "Prescription(s)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      oneOf: [
+                        { $ref: "#/components/schemas/Prescription" },
+                        { type: "array", items: { $ref: "#/components/schemas/Prescription" } },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Accès refusé", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      post: {
+        summary: "Créer une prescription",
+        description: "Seul un praticien peut créer une prescription. Vérifie que le suivi lui appartient.",
+        tags: ["Public — Prescriptions"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["suiviPatientId"],
+                properties: {
+                  suiviPatientId: { type: "integer" },
+                  isActive: { type: "boolean", default: true },
+                  deliveredAt: { type: "string", format: "date-time", nullable: true },
+                  exercicesParJour: { type: "integer", nullable: true },
+                  exercices: { type: "array", items: {}, default: [] },
+                  parcours: { type: "array", items: {}, default: [] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Prescription créée",
+            content: { "application/json": { schema: { type: "object", properties: { data: { $ref: "#/components/schemas/Prescription" } } } } },
+          },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Seul un praticien peut créer une prescription", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { description: "Suivi introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      put: {
+        summary: "Modifier une prescription",
+        description: "Seul le praticien créateur peut modifier. L'id de la prescription est dans le body.",
+        tags: ["Public — Prescriptions"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["id"],
+                properties: {
+                  id: { type: "integer" },
+                  isActive: { type: "boolean" },
+                  deliveredAt: { type: "string", format: "date-time", nullable: true },
+                  exercicesParJour: { type: "integer", nullable: true },
+                  exercices: { type: "array", items: {} },
+                  parcours: { type: "array", items: {} },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Prescription mise à jour",
+            content: { "application/json": { schema: { type: "object", properties: { data: { $ref: "#/components/schemas/Prescription" } } } } },
+          },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Accès refusé", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      delete: {
+        summary: "Supprimer une prescription",
+        description: "Seul le praticien créateur peut supprimer. L'id est passé en query parameter.",
+        tags: ["Public — Prescriptions"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "id", in: "query", required: true, schema: { type: "integer" }, description: "ID de la prescription à supprimer" },
+        ],
+        responses: {
+          "200": { description: "Supprimée", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" } } } } } },
+          "400": { description: "Paramètre id requis", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Token manquant ou invalide", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "403": { description: "Accès refusé", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    // ─── Routes publiques — Pages statiques ────────────────────────────────
+
+    "/public/pages": {
+      get: {
+        summary: "Pages statiques",
+        description: "Retourne toutes les pages ou une seule par slug. Route publique sans authentification.",
+        tags: ["Public — Pages"],
+        parameters: [
+          { name: "slug", in: "query", schema: { type: "string" }, description: "Slug de la page (optionnel)" },
+        ],
+        responses: {
+          "200": {
+            description: "Page(s) statique(s)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      oneOf: [
+                        { $ref: "#/components/schemas/PageStatique" },
+                        { type: "array", items: { $ref: "#/components/schemas/PageStatique" } },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "404": { description: "Page introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "500": { $ref: "#/components/responses/InternalError" },
         },
       },

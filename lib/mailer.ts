@@ -165,6 +165,25 @@ export async function sendListeActivatedEmail(
   })
 }
 
+export async function sendInvitationEmail(
+  to: string,
+  registerUrl: string,
+  praticienNom: string
+): Promise<void> {
+  const html = renderTemplate("invitation.html", {
+    REGISTER_URL: registerUrl,
+    PRATICIEN_NOM: praticienNom,
+  })
+  const text = `${praticienNom} vous invite à rejoindre MADLEN, une application d'entraînement vocal.\n\nPour commencer votre parcours, créez votre compte en cliquant sur ce lien :\n${registerUrl}\n\nSi vous ne connaissez pas ce praticien, ignorez cet e-mail.\n\n© 2025 MADLEN - AMS-Logophonie`
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM ?? "Madlen <ne-pas-repondre@madlen.app>",
+    to,
+    subject: `${praticienNom} vous invite sur MADLEN`,
+    html,
+    text,
+  })
+}
+
 export async function sendConfirmationEmail(to: string, confirmUrl: string): Promise<void> {
   const html = renderTemplate("confirmation.html", { CONFIRM_URL: confirmUrl })
   const text = `Bienvenue chez MADLEN !\n\nConfirmez votre adresse e-mail en cliquant sur ce lien :\n${confirmUrl}\n\nCe lien est valable 48h. Si vous n'êtes pas à l'origine de cette inscription, ignorez ce message.\n\n© 2025 MADLEN - AMS-Logophonie`
