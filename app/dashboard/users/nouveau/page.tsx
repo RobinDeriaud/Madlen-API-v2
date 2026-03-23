@@ -3,14 +3,15 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { useFieldErrors } from "@/lib/hooks/useFieldErrors"
 
 const inputCls =
   "border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, error, children }: { label: string; error?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</label>
+      <label className={`text-xs font-medium uppercase tracking-wide ${error ? "text-red-500" : "text-gray-500"}`}>{label}</label>
       {children}
     </div>
   )
@@ -28,11 +29,13 @@ export default function NouvelUtilisateurPage() {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fe = useFieldErrors()
 
   function set(key: keyof typeof f) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       setF((prev) => ({ ...prev, [key]: e.target.value }))
       setError(null)
+      fe.clearError(key)
     }
   }
 
@@ -40,6 +43,13 @@ export default function NouvelUtilisateurPage() {
     e.preventDefault()
     setSaving(true)
     setError(null)
+
+    // Client-side validation
+    const valid = fe.validate([
+      { field: "email", value: f.email, label: "Email" },
+      { field: "password", value: f.password, label: "Mot de passe" },
+    ])
+    if (!valid) { setSaving(false); return }
 
     const res = await fetch("/api/users", {
       method: "POST",
@@ -55,10 +65,13 @@ export default function NouvelUtilisateurPage() {
 
     if (res.ok) {
       const data = await res.json()
+      router.refresh()
       router.push(`/dashboard/users/${data.id}?emailSent=1`)
     } else {
       const data = await res.json()
-      setError(data.error ?? "Erreur lors de la création.")
+      if (!fe.setFromApi(data)) {
+        setError(data.error ?? "Erreur lors de la création.")
+      }
       setSaving(false)
     }
   }
@@ -83,12 +96,12 @@ export default function NouvelUtilisateurPage() {
           </Field>
         </div>
 
-        <Field label="Email *">
-          <input type="email" className={inputCls} value={f.email} onChange={set("email")} placeholder="marie@exemple.fr" required />
+        <Field label="Email *" error={fe.hasError("email")}>
+          <input type="email" className={`${inputCls} ${fe.fieldCls("email")}`} value={f.email} onChange={set("email")} placeholder="marie@exemple.fr" />
         </Field>
 
-        <Field label="Mot de passe * (min. 6 caractères)">
-          <input type="password" className={inputCls} value={f.password} onChange={set("password")} minLength={6} required />
+        <Field label="Mot de passe * (min. 6 caractères)" error={fe.hasError("password")}>
+          <input type="password" className={`${inputCls} ${fe.fieldCls("password")}`} value={f.password} onChange={set("password")} minLength={6} />
         </Field>
 
         <Field label="Type">

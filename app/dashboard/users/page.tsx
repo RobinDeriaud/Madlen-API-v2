@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { useDataList } from "@/lib/hooks/use-data-list"
 
 type UserType = "NONE" | "PATIENT" | "PRATICIEN"
 
@@ -78,24 +79,18 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 
 export default function UsersPage() {
   const router = useRouter()
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data: users, loading, error, refetch } = useDataList<User>("/api/users")
   const [sortKey, setSortKey] = useState<SortKey>("nom")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState<UserType | "ALL">("ALL")
 
+  // Refetch quand la page redevient visible (retour depuis une page détail)
   useEffect(() => {
-    fetch("/api/users")
-      .then((r) => {
-        if (!r.ok) throw new Error("Erreur de chargement")
-        return r.json()
-      })
-      .then((data) => setUsers(data))
-      .catch(() => setError("Impossible de charger les utilisateurs."))
-      .finally(() => setLoading(false))
-  }, [])
+    const onFocus = () => refetch()
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
+  }, [refetch])
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {

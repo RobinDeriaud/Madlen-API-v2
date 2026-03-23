@@ -4,16 +4,21 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { MacroBadge, MACRO_CONFIG } from "@/lib/macro"
+import { useDataList } from "@/lib/hooks/use-data-list"
 
 type Exercice = {
   id: number
   macro: string | null
   numero: number | null
   nom: string | null
+  version: string | null
+  updatedAt: string | null
+  publishedAt: string | null
 }
 
-type SortKey = "numero" | "macro" | "nom"
+type SortKey = "numero" | "macro" | "nom" | "version" | "updatedAt"
 type SortDir = "asc" | "desc"
+type PublishFilter = "ALL" | "PUBLISHED" | "DRAFT"
 
 function sorted(list: Exercice[], key: SortKey, dir: SortDir): Exercice[] {
   return [...list].sort((a, b) => {
@@ -32,26 +37,31 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   return <span className="ml-1 text-gray-700">{dir === "asc" ? "↑" : "↓"}</span>
 }
 
+function formatDate(iso: string | null): string {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
+}
+
 export default function ExercicesPage() {
   const router = useRouter()
-  const [exercices, setExercices] = useState<Exercice[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data: exercices, loading, error, refetch } = useDataList<Exercice>("/api/exercices")
   const [sortKey, setSortKey] = useState<SortKey>("numero")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [search, setSearch] = useState("")
   const [macroFilter, setMacroFilter] = useState<string | "ALL">("ALL")
+  const [publishFilter, setPublishFilter] = useState<PublishFilter>("ALL")
+  const [togglingId, setTogglingId] = useState<number | null>(null)
 
+  // Refetch quand la page redevient visible (retour depuis une page détail)
   useEffect(() => {
-    fetch("/api/exercices")
-      .then((r) => {
-        if (!r.ok) throw new Error("Erreur de chargement")
-        return r.json()
-      })
-      .then((data) => setExercices(data))
-      .catch(() => setError("Impossible de charger les exercices."))
-      .finally(() => setLoading(false))
-  }, [])
+    const onFocus = () => refetch()
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
+  }, [refetch])
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -59,6 +69,21 @@ export default function ExercicesPage() {
     } else {
       setSortKey(key)
       setSortDir("asc")
+    }
+  }
+
+  async function togglePublish(ex: Exercice, e: React.MouseEvent) {
+    e.stopPropagation()
+    setTogglingId(ex.id)
+    try {
+      await fetch(`/api/exercices/${ex.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ published: !ex.publishedAt }),
+      })
+      refetch()
+    } finally {
+      setTogglingId(null)
     }
   }
 
@@ -78,6 +103,11 @@ export default function ExercicesPage() {
   const filtered = exercices
     .filter((ex) => macroFilter === "ALL" || ex.macro === macroFilter)
     .filter((ex) => {
+      if (publishFilter === "PUBLISHED") return ex.publishedAt !== null
+      if (publishFilter === "DRAFT") return ex.publishedAt === null
+      return true
+    })
+    .filter((ex) => {
       const q = search.trim().toLowerCase()
       if (!q) return true
       return (
@@ -86,7 +116,7 @@ export default function ExercicesPage() {
       )
     })
   const rows = sorted(filtered, sortKey, sortDir)
-  const isFiltering = search.trim().length > 0 || macroFilter !== "ALL"
+  const isFiltering = search.trim().length > 0 || macroFilter !== "ALL" || publishFilter !== "ALL"
 
   return (
     <div>
@@ -129,6 +159,31 @@ export default function ExercicesPage() {
         ))}
       </div>
 
+      {/* Filtre publication */}
+      <div className="flex gap-2 mb-4">
+        {([
+          ["ALL", "Tous"],
+          ["PUBLISHED", "Publiés"],
+          ["DRAFT", "Brouillons"],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setPublishFilter(value)}
+            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+              publishFilter === value
+                ? value === "PUBLISHED"
+                  ? "bg-green-100 text-green-800 border-green-300"
+                  : value === "DRAFT"
+                    ? "bg-amber-100 text-amber-800 border-amber-300"
+                    : "bg-gray-800 text-white border-gray-800"
+                : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Barre de recherche + compteur */}
       <div className="mb-5">
         <input
@@ -150,7 +205,7 @@ export default function ExercicesPage() {
         <thead>
           <tr className="bg-gray-50 border-y border-gray-200">
             <th
-              className={`text-right py-3 pr-6 pl-3 font-semibold w-24 cursor-pointer select-none transition-colors ${sortKey === "numero" ? "text-gray-900" : "text-gray-500 hover:text-gray-800"}`}
+              className={`text-right py-3 pr-6 pl-3 font-semibold w-20 cursor-pointer select-none transition-colors ${sortKey === "numero" ? "text-gray-900" : "text-gray-500 hover:text-gray-800"}`}
               onClick={() => handleSort("numero")}
             >
               N°
@@ -164,12 +219,27 @@ export default function ExercicesPage() {
               <SortIcon active={sortKey === "macro"} dir={sortDir} />
             </th>
             <th
-              className={`text-left py-3 font-semibold cursor-pointer select-none transition-colors ${sortKey === "nom" ? "text-gray-900" : "text-gray-500 hover:text-gray-800"}`}
+              className={`text-left py-3 pr-6 font-semibold cursor-pointer select-none transition-colors ${sortKey === "nom" ? "text-gray-900" : "text-gray-500 hover:text-gray-800"}`}
               onClick={() => handleSort("nom")}
             >
               Titre
               <SortIcon active={sortKey === "nom"} dir={sortDir} />
             </th>
+            <th
+              className={`text-left py-3 pr-6 font-semibold w-20 cursor-pointer select-none transition-colors ${sortKey === "version" ? "text-gray-900" : "text-gray-500 hover:text-gray-800"}`}
+              onClick={() => handleSort("version")}
+            >
+              Version
+              <SortIcon active={sortKey === "version"} dir={sortDir} />
+            </th>
+            <th
+              className={`text-left py-3 pr-6 font-semibold w-32 cursor-pointer select-none transition-colors ${sortKey === "updatedAt" ? "text-gray-900" : "text-gray-500 hover:text-gray-800"}`}
+              onClick={() => handleSort("updatedAt")}
+            >
+              Modifié
+              <SortIcon active={sortKey === "updatedAt"} dir={sortDir} />
+            </th>
+            <th className="text-center py-3 font-semibold w-24">Statut</th>
           </tr>
         </thead>
         <tbody>
@@ -185,8 +255,27 @@ export default function ExercicesPage() {
               <td className="py-3 pr-6">
                 {ex.macro ? <MacroBadge macro={ex.macro} /> : <span className="text-gray-200">—</span>}
               </td>
-              <td className="py-3 text-gray-800 group-hover:text-gray-900 group-hover:underline underline-offset-2">
+              <td className="py-3 pr-6 text-gray-800 group-hover:text-gray-900 group-hover:underline underline-offset-2">
                 {ex.nom ?? <span className="text-gray-300 no-underline">—</span>}
+              </td>
+              <td className="py-3 pr-6 text-gray-500 text-xs tabular-nums">
+                {ex.version ?? "—"}
+              </td>
+              <td className="py-3 pr-6 text-gray-400 text-xs tabular-nums">
+                {formatDate(ex.updatedAt)}
+              </td>
+              <td className="py-3 text-center">
+                <button
+                  onClick={(e) => togglePublish(ex, e)}
+                  disabled={togglingId === ex.id}
+                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    ex.publishedAt
+                      ? "bg-green-100 text-green-800 hover:bg-green-200"
+                      : "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                  } ${togglingId === ex.id ? "opacity-50 cursor-wait" : ""}`}
+                >
+                  {ex.publishedAt ? "Publié" : "Brouillon"}
+                </button>
               </td>
             </tr>
           ))}

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
 
 const updateSchema = z.object({
@@ -58,7 +59,7 @@ export async function PUT(
 
   const body = await req.json()
   const parsed = updateSchema.safeParse(body)
-  if (!parsed.success) return Response.json({ error: "Invalid input" }, { status: 400 })
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   const { date, publishedAt, ...rest } = parsed.data
 
@@ -74,6 +75,35 @@ export async function PUT(
     if (err instanceof Error && "code" in err && err.code === "P2002") {
       return Response.json({ error: "Ce numéro est déjà utilisé" }, { status: 409 })
     }
+    if (err instanceof Error && "code" in err && err.code === "P2025") {
+      return Response.json({ error: "Not found" }, { status: 404 })
+    }
+    return Response.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth()
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { id: rawId } = await params
+  const id = parseInt(rawId)
+  if (isNaN(id)) return Response.json({ error: "Invalid id" }, { status: 400 })
+
+  const body = await req.json()
+  const parsed = z.object({ published: z.boolean() }).safeParse(body)
+  if (!parsed.success) return zodFieldError(parsed.error)
+
+  try {
+    const updated = await prisma.exercice.update({
+      where: { id },
+      data: { publishedAt: parsed.data.published ? new Date() : null },
+    })
+    return Response.json(updated)
+  } catch (err) {
     if (err instanceof Error && "code" in err && err.code === "P2025") {
       return Response.json({ error: "Not found" }, { status: 404 })
     }

@@ -9,7 +9,10 @@
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
+    "db:deploy": "bash scripts/pre-deploy-backup.sh && prisma migrate deploy",
+    "db:deploy:skip-backup": "prisma migrate deploy",
+    "db:backup": "bash scripts/backup-db.sh",
+    "db:restore": "bash scripts/restore-db.sh",
     "db:studio": "prisma studio",
     "db:baseline": "prisma migrate resolve --applied 0_init",
     "db:import-exercices": "node scripts/import-exercices.mjs"

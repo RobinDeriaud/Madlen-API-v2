@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { sendListeActivatedEmail } from "@/lib/mailer"
+import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
 
 const updateListeSchema = z.object({
@@ -58,7 +59,7 @@ export async function PUT(
 
   const body = await req.json()
   const parsed = updateListeSchema.safeParse(body)
-  if (!parsed.success) return Response.json({ error: "Invalid input" }, { status: 400 })
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   try {
     const user = await prisma.user.findUnique({

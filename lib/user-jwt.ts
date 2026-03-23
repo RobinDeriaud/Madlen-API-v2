@@ -52,6 +52,43 @@ export async function verifyPraticienConfirmJwt(
   }
 }
 
+// ─── Patient Setup Token ────────────────────────────────────────────────────
+// Utilisé quand un praticien (ou l'admin) crée un compte patient.
+// Le patient reçoit un email avec un lien vers /configurer-compte?token=xxx
+// qui lui permet de définir son mot de passe et compléter son profil.
+// À la validation, le praticien est automatiquement confirmé.
+// Réutilisable hors admin panel : il suffit de signer ce JWT et d'envoyer
+// l'email via sendPatientSetupEmail().
+
+type PatientSetupPayload = {
+  patientUserId: number
+  praticienId: number
+  type: "patient-setup"
+}
+
+export async function signPatientSetupJwt(payload: {
+  patientUserId: number
+  praticienId: number
+}) {
+  return new SignJWT({ ...payload, type: "patient-setup" } satisfies PatientSetupPayload)
+    .setProtectedHeader({ alg: ALG })
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(secret)
+}
+
+export async function verifyPatientSetupJwt(
+  token: string
+): Promise<PatientSetupPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, secret)
+    if (payload.type !== "patient-setup") return null
+    return payload as unknown as PatientSetupPayload
+  } catch {
+    return null
+  }
+}
+
 type SuiviConfirmPayload = {
   suiviPatientId: number
   patientUserId: number

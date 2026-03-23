@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
 
 const MacroExerciceEnum = z.enum([
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const parsed = createSchema.safeParse(body)
-  if (!parsed.success) return Response.json({ error: "Invalid input" }, { status: 400 })
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   try {
     const exercice = await prisma.exercice.create({
@@ -45,7 +46,7 @@ export async function GET() {
 
   try {
     const exercices = await prisma.exercice.findMany({
-      select: { id: true, numero: true, nom: true, macro: true },
+      select: { id: true, numero: true, nom: true, macro: true, version: true, updatedAt: true, publishedAt: true },
       orderBy: { numero: "asc" },
     })
     return Response.json(exercices)

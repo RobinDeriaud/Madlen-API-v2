@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
+import { useFieldErrors } from "@/lib/hooks/useFieldErrors"
 
 // ─── Enum options ────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ function toDatetimeInput(iso: string | null): string {
   return iso.slice(0, 16)
 }
 
-// ─── ListeElement types & options ────────────────────────────────────────────
+// ─── ListeElement types ─────────────────────────────────────────────────────
 
 type ReponseElementValue = "NULL" | "OUI" | "NON"
 
@@ -132,17 +133,17 @@ type ListeElementFromApi = {
 }
 
 const REPONSE_OPTIONS: { value: ReponseElementValue; label: string }[] = [
-  { value: "NULL", label: "—" },
+  { value: "NULL", label: "---" },
   { value: "OUI", label: "Oui" },
   { value: "NON", label: "Non" },
 ]
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, error, children }: { label: string; error?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</label>
+      <label className={`text-xs font-medium uppercase tracking-wide ${error ? "text-red-500" : "text-gray-500"}`}>{label}</label>
       {children}
     </div>
   )
@@ -155,18 +156,20 @@ function EnumSelect({
   value,
   onChange,
   options,
+  extraCls,
 }: {
   value: string
   onChange: (v: string) => void
   options: { value: string; label: string }[]
+  extraCls?: string
 }) {
   return (
     <select
-      className={inputCls}
+      className={`${inputCls} ${extraCls ?? ""}`}
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >
-      <option value="">— aucun —</option>
+      <option value="">--- aucun ---</option>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -184,187 +187,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
-function ListeElementsEditor({ exerciceId }: { exerciceId: string }) {
-  const keyRef = useRef(0)
-  function nextKey() { return ++keyRef.current }
-
-  const [items, setItems] = useState<ListeElementLocal[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch(`/api/exercices/${exerciceId}/liste-elements`)
-      .then((r) => r.json())
-      .then((data: ListeElementFromApi[]) => {
-        setItems(
-          data.map((d) => ({
-            _key: nextKey(),
-            id: d.id,
-            element: d.element ?? "",
-            reponse: (d.reponse as ReponseElementValue) ?? "NULL",
-            order: d.order ?? 0,
-          }))
-        )
-      })
-      .finally(() => setLoading(false))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exerciceId])
-
-  function addItem() {
-    setItems((prev) => [...prev, { _key: nextKey(), element: "", reponse: "NULL", order: prev.length }])
-    setSaved(false)
-  }
-
-  function removeItem(key: number) {
-    setItems((prev) => prev.filter((i) => i._key !== key))
-    setSaved(false)
-  }
-
-  function updateItem(key: number, field: "element" | "reponse", value: string) {
-    setItems((prev) => prev.map((i) => (i._key === key ? { ...i, [field]: value } : i)))
-    setSaved(false)
-  }
-
-  function moveUp(index: number) {
-    if (index === 0) return
-    setItems((prev) => {
-      const next = [...prev]
-      ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-      return next
-    })
-    setSaved(false)
-  }
-
-  function moveDown(index: number) {
-    setItems((prev) => {
-      if (index === prev.length - 1) return prev
-      const next = [...prev]
-      ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
-      return next
-    })
-    setSaved(false)
-  }
-
-  async function handleSave() {
-    setSaving(true)
-    setSaved(false)
-    setSaveError(null)
-
-    const body = items.map((item, i) => ({
-      element: item.element || null,
-      reponse: item.reponse,
-      order: i,
-    }))
-
-    const res = await fetch(`/api/exercices/${exerciceId}/liste-elements`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-
-    if (res.ok) {
-      const data: ListeElementFromApi[] = await res.json()
-      setItems(
-        data.map((d) => ({
-          _key: nextKey(),
-          id: d.id,
-          element: d.element ?? "",
-          reponse: (d.reponse as ReponseElementValue) ?? "NULL",
-          order: d.order ?? 0,
-        }))
-      )
-      setSaved(true)
-    } else {
-      const data = await res.json()
-      setSaveError(data.error ?? "Erreur lors de la sauvegarde.")
-    }
-    setSaving(false)
-  }
-
-  if (loading) return <p className="text-gray-400 text-sm mt-6">Chargement de la liste…</p>
-
-  return (
-    <div className="mt-6 flex flex-col gap-3">
-      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest pt-4 pb-1 border-b border-gray-100">
-        Liste d&apos;éléments
-      </h2>
-
-      {items.length === 0 && (
-        <p className="text-gray-400 text-sm">Aucun élément.</p>
-      )}
-
-      <div className="flex flex-col gap-2">
-        {items.map((item, i) => (
-          <div key={item._key} className="flex items-center gap-2">
-            <span className="text-xs text-gray-400 w-5 text-right shrink-0">{i + 1}</span>
-            <input
-              type="text"
-              className={`${inputCls} flex-1`}
-              value={item.element}
-              onChange={(e) => updateItem(item._key, "element", e.target.value)}
-              placeholder="Texte de l'élément"
-            />
-            <select
-              className={`${inputCls} w-20 shrink-0`}
-              value={item.reponse}
-              onChange={(e) => updateItem(item._key, "reponse", e.target.value)}
-            >
-              {REPONSE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <div className="flex flex-col gap-0.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => moveUp(i)}
-                disabled={i === 0}
-                className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
-                title="Monter"
-              >▲</button>
-              <button
-                type="button"
-                onClick={() => moveDown(i)}
-                disabled={i === items.length - 1}
-                className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
-                title="Descendre"
-              >▼</button>
-            </div>
-            <button
-              type="button"
-              onClick={() => removeItem(item._key)}
-              className="text-gray-400 hover:text-red-500 text-lg leading-none shrink-0"
-              title="Supprimer"
-            >×</button>
-          </div>
-        ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={addItem}
-        className="self-start text-sm text-gray-500 hover:text-gray-800 border border-dashed border-gray-300 rounded px-3 py-1.5 hover:border-gray-500"
-      >
-        + Ajouter un élément
-      </button>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="px-4 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-500 disabled:opacity-50"
-        >
-          {saving ? "Enregistrement…" : "Enregistrer la liste"}
-        </button>
-        {saved && <span className="text-green-600 text-sm">Sauvegardée.</span>}
-        {saveError && <span className="text-red-500 text-sm">{saveError}</span>}
-      </div>
-    </div>
-  )
-}
-
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function ExerciceEditPage() {
@@ -372,13 +194,20 @@ export default function ExerciceEditPage() {
   const router = useRouter()
   const id = params.id as string
 
+  const keyRef = useRef(0)
+  function nextKey() { return ++keyRef.current }
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [published, setPublished] = useState(false)
+  const [togglingPublish, setTogglingPublish] = useState(false)
+  const [listeLoading, setListeLoading] = useState(true)
+  const fe = useFieldErrors()
 
-  // Form state — all strings for easy input binding
+  // Form state
   const [f, setF] = useState({
     numero: "",
     nom: "",
@@ -402,6 +231,10 @@ export default function ExerciceEditPage() {
     publishedAt: "",
   })
 
+  // Liste elements state
+  const [listeItems, setListeItems] = useState<ListeElementLocal[]>([])
+
+  // Load exercice data
   useEffect(() => {
     fetch(`/api/exercices/${id}`)
       .then((r) => {
@@ -409,6 +242,7 @@ export default function ExerciceEditPage() {
         return r.json()
       })
       .then((data: ExerciceData) => {
+        setPublished(data.publishedAt !== null)
         setF({
           numero: data.numero != null ? String(data.numero) : "",
           nom: data.nom ?? "",
@@ -436,19 +270,77 @@ export default function ExerciceEditPage() {
       .finally(() => setLoading(false))
   }, [id])
 
+  // Load liste elements
+  useEffect(() => {
+    fetch(`/api/exercices/${id}/liste-elements`)
+      .then((r) => r.json())
+      .then((data: ListeElementFromApi[]) => {
+        setListeItems(
+          data.map((d) => ({
+            _key: nextKey(),
+            id: d.id,
+            element: d.element ?? "",
+            reponse: (d.reponse as ReponseElementValue) ?? "NULL",
+            order: d.order ?? 0,
+          }))
+        )
+      })
+      .finally(() => setListeLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
   function set(key: keyof typeof f) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       setF((prev) => ({ ...prev, [key]: e.target.value }))
       setSaved(false)
       setSaveError(null)
+      fe.clearError(key)
     }
   }
 
+  // Liste element handlers
+  function addItem() {
+    setListeItems((prev) => [...prev, { _key: nextKey(), element: "", reponse: "NULL", order: prev.length }])
+    setSaved(false)
+  }
+
+  function removeItem(key: number) {
+    setListeItems((prev) => prev.filter((i) => i._key !== key))
+    setSaved(false)
+  }
+
+  function updateItem(key: number, field: "element" | "reponse", value: string) {
+    setListeItems((prev) => prev.map((i) => (i._key === key ? { ...i, [field]: value } : i)))
+    setSaved(false)
+  }
+
+  function moveUp(index: number) {
+    if (index === 0) return
+    setListeItems((prev) => {
+      const next = [...prev]
+      ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+      return next
+    })
+    setSaved(false)
+  }
+
+  function moveDown(index: number) {
+    setListeItems((prev) => {
+      if (index === prev.length - 1) return prev
+      const next = [...prev]
+      ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
+      return next
+    })
+    setSaved(false)
+  }
+
+  // Single save handler for everything
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setSaveError(null)
     setSaved(false)
+    fe.clearAll()
 
     // Parse boutons JSON
     let boutons: unknown = null
@@ -456,13 +348,13 @@ export default function ExerciceEditPage() {
       try {
         boutons = JSON.parse(f.boutons)
       } catch {
-        setSaveError("Le champ « Boutons » contient du JSON invalide.")
+        setSaveError("Le champ Boutons contient du JSON invalide.")
         setSaving(false)
         return
       }
     }
 
-    const body = {
+    const exerciceBody = {
       numero: f.numero !== "" ? parseInt(f.numero) : null,
       nom: f.nom || null,
       sigle: f.sigle || null,
@@ -485,54 +377,116 @@ export default function ExerciceEditPage() {
       publishedAt: f.publishedAt || null,
     }
 
-    const res = await fetch(`/api/exercices/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
+    const listeBody = listeItems.map((item, i) => ({
+      element: item.element || null,
+      reponse: item.reponse,
+      order: i,
+    }))
 
-    if (res.ok) {
+    // Save both in parallel
+    const [exerciceRes, listeRes] = await Promise.all([
+      fetch(`/api/exercices/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(exerciceBody),
+      }),
+      fetch(`/api/exercices/${id}/liste-elements`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(listeBody),
+      }),
+    ])
+
+    if (exerciceRes.ok && listeRes.ok) {
+      // Refresh liste items with server data
+      const listeData: ListeElementFromApi[] = await listeRes.json()
+      setListeItems(
+        listeData.map((d) => ({
+          _key: nextKey(),
+          id: d.id,
+          element: d.element ?? "",
+          reponse: (d.reponse as ReponseElementValue) ?? "NULL",
+          order: d.order ?? 0,
+        }))
+      )
       setSaved(true)
+    } else if (!exerciceRes.ok) {
+      const data = await exerciceRes.json()
+      if (!fe.setFromApi(data)) {
+        setSaveError(data.error ?? "Erreur lors de la sauvegarde de l'exercice.")
+      }
     } else {
-      const data = await res.json()
-      setSaveError(data.error ?? "Erreur lors de la sauvegarde.")
+      const data = await listeRes.json()
+      setSaveError(data.error ?? "Erreur lors de la sauvegarde de la liste.")
     }
     setSaving(false)
+  }
+
+  async function togglePublish() {
+    setTogglingPublish(true)
+    const res = await fetch(`/api/exercices/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ published: !published }),
+    })
+    if (res.ok) {
+      const data: ExerciceData = await res.json()
+      setPublished(data.publishedAt !== null)
+      setF((prev) => ({ ...prev, publishedAt: toDatetimeInput(data.publishedAt) }))
+    }
+    setTogglingPublish(false)
   }
 
   if (loading) return <p className="text-gray-500">Chargement...</p>
   if (error) return <p className="text-red-500">{error}</p>
 
   return (
-    <div className="max-w-3xl">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/dashboard/exercices" className="text-gray-400 hover:text-gray-700 text-sm">
-          ← Exercices
-        </Link>
-        <span className="text-gray-300">/</span>
-        <h1 className="text-xl font-bold text-gray-800">
-          {f.nom || `Exercice #${id}`}
-        </h1>
+    <div className="max-w-3xl pb-16">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard/exercices" className="text-gray-400 hover:text-gray-700 text-sm">
+            ← Exercices
+          </Link>
+          <span className="text-gray-300">/</span>
+          <h1 className="text-xl font-bold text-gray-800">
+            {f.nom || `Exercice #${id}`}
+          </h1>
+        </div>
+        <button
+          type="button"
+          onClick={togglePublish}
+          disabled={togglingPublish}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+            published
+              ? "bg-green-100 text-green-800 hover:bg-green-200 border border-green-300"
+              : "bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300"
+          } ${togglingPublish ? "opacity-50 cursor-wait" : ""}`}
+        >
+          <span className={`inline-block w-2 h-2 rounded-full ${published ? "bg-green-500" : "bg-amber-500"}`} />
+          {published ? "Publie" : "Brouillon"}
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
+        {/* ── Identification ── */}
         <SectionTitle>Identification</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Numéro">
-            <input type="number" className={inputCls} value={f.numero} onChange={set("numero")} />
+          <Field label="Numero" error={fe.hasError("numero")}>
+            <input type="number" className={`${inputCls} ${fe.fieldCls("numero")}`} value={f.numero} onChange={set("numero")} />
           </Field>
-          <Field label="Sigle">
-            <input type="text" className={inputCls} value={f.sigle} onChange={set("sigle")} />
+          <Field label="Sigle" error={fe.hasError("sigle")}>
+            <input type="text" className={`${inputCls} ${fe.fieldCls("sigle")}`} value={f.sigle} onChange={set("sigle")} />
           </Field>
         </div>
-        <Field label="Nom">
-          <input type="text" className={inputCls} value={f.nom} onChange={set("nom")} />
+        <Field label="Nom" error={fe.hasError("nom")}>
+          <input type="text" className={`${inputCls} ${fe.fieldCls("nom")}`} value={f.nom} onChange={set("nom")} />
         </Field>
-        <Field label="Résumé (bref)">
+        <Field label="Resume (bref)">
           <textarea className={textareaCls} value={f.bref} onChange={set("bref")} rows={2} />
         </Field>
 
+        {/* ── Contenu ── */}
         <SectionTitle>Contenu</SectionTitle>
         <Field label="But">
           <textarea className={textareaCls} value={f.but} onChange={set("but")} />
@@ -547,28 +501,97 @@ export default function ExerciceEditPage() {
           <textarea className={textareaCls} value={f.commentaires} onChange={set("commentaires")} />
         </Field>
 
+        {/* ── Liste d'elements ── */}
+        <SectionTitle>Liste d&apos;elements</SectionTitle>
+
+        {listeLoading ? (
+          <p className="text-gray-400 text-sm">Chargement de la liste...</p>
+        ) : (
+          <>
+            {listeItems.length === 0 && (
+              <p className="text-gray-400 text-sm">Aucun element.</p>
+            )}
+
+            <div className="flex flex-col gap-2">
+              {listeItems.map((item, i) => (
+                <div key={item._key} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-5 text-right shrink-0">{i + 1}</span>
+                  <input
+                    type="text"
+                    className={`${inputCls} flex-1 min-w-0`}
+                    value={item.element}
+                    onChange={(e) => updateItem(item._key, "element", e.target.value)}
+                    placeholder="Texte de l'element"
+                  />
+                  <select
+                    className={`${inputCls} w-20 shrink-0`}
+                    value={item.reponse}
+                    onChange={(e) => updateItem(item._key, "reponse", e.target.value)}
+                  >
+                    {REPONSE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => moveUp(i)}
+                      disabled={i === 0}
+                      className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
+                      title="Monter"
+                    >&#9650;</button>
+                    <button
+                      type="button"
+                      onClick={() => moveDown(i)}
+                      disabled={i === listeItems.length - 1}
+                      className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
+                      title="Descendre"
+                    >&#9660;</button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(item._key)}
+                    className="text-gray-400 hover:text-red-500 text-lg leading-none shrink-0"
+                    title="Supprimer"
+                  >&#215;</button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addItem}
+              className="self-start text-sm text-gray-500 hover:text-gray-800 border border-dashed border-gray-300 rounded px-3 py-1.5 hover:border-gray-500"
+            >
+              + Ajouter un element
+            </button>
+          </>
+        )}
+
+        {/* ── Classification ── */}
         <SectionTitle>Classification</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Macro">
-            <EnumSelect value={f.macro} onChange={(v) => { setF((p) => ({ ...p, macro: v })); setSaved(false) }} options={MACRO_OPTIONS} />
+          <Field label="Macro" error={fe.hasError("macro")}>
+            <EnumSelect value={f.macro} onChange={(v) => { setF((p) => ({ ...p, macro: v })); setSaved(false); fe.clearError("macro") }} options={MACRO_OPTIONS} extraCls={fe.fieldCls("macro")} />
           </Field>
-          <Field label="Axe">
-            <EnumSelect value={f.axe} onChange={(v) => { setF((p) => ({ ...p, axe: v })); setSaved(false) }} options={AXE_OPTIONS} />
+          <Field label="Axe" error={fe.hasError("axe")}>
+            <EnumSelect value={f.axe} onChange={(v) => { setF((p) => ({ ...p, axe: v })); setSaved(false); fe.clearError("axe") }} options={AXE_OPTIONS} extraCls={fe.fieldCls("axe")} />
           </Field>
-          <Field label="Outil">
-            <EnumSelect value={f.outil} onChange={(v) => { setF((p) => ({ ...p, outil: v })); setSaved(false) }} options={OUTIL_OPTIONS} />
+          <Field label="Outil" error={fe.hasError("outil")}>
+            <EnumSelect value={f.outil} onChange={(v) => { setF((p) => ({ ...p, outil: v })); setSaved(false); fe.clearError("outil") }} options={OUTIL_OPTIONS} extraCls={fe.fieldCls("outil")} />
           </Field>
-          <Field label="Récurrence">
-            <EnumSelect value={f.recurrence} onChange={(v) => { setF((p) => ({ ...p, recurrence: v })); setSaved(false) }} options={RECURRENCE_OPTIONS} />
+          <Field label="Recurrence" error={fe.hasError("recurrence")}>
+            <EnumSelect value={f.recurrence} onChange={(v) => { setF((p) => ({ ...p, recurrence: v })); setSaved(false); fe.clearError("recurrence") }} options={RECURRENCE_OPTIONS} extraCls={fe.fieldCls("recurrence")} />
           </Field>
         </div>
-        <Field label="Paramètre outil">
+        <Field label="Parametre outil">
           <input type="text" className={inputCls} value={f.outil_param} onChange={set("outil_param")} />
         </Field>
 
-        <SectionTitle>Paramètres</SectionTitle>
+        {/* ── Parametres ── */}
+        <SectionTitle>Parametres</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Durée (min)">
+          <Field label="Duree (min)">
             <input type="number" className={inputCls} value={f.duree} onChange={set("duree")} min={1} />
           </Field>
           <Field label="Date">
@@ -583,12 +606,10 @@ export default function ExerciceEditPage() {
           <Field label="Fichier">
             <input type="text" className={inputCls} value={f.fichier} onChange={set("fichier")} placeholder="nom_du_fichier.ext" />
           </Field>
-          <Field label="Publié le">
-            <input type="datetime-local" className={inputCls} value={f.publishedAt} onChange={set("publishedAt")} />
-          </Field>
         </div>
 
-        <SectionTitle>Avancé</SectionTitle>
+        {/* ── Avance ── */}
+        <SectionTitle>Avance</SectionTitle>
         <Field label="Boutons (JSON)">
           <textarea
             className={`${textareaCls} font-mono text-xs`}
@@ -599,14 +620,14 @@ export default function ExerciceEditPage() {
           />
         </Field>
 
-        {/* Actions */}
+        {/* ── Actions ── */}
         <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
           <button
             type="submit"
             disabled={saving}
             className="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50"
           >
-            {saving ? "Enregistrement…" : "Enregistrer"}
+            {saving ? "Enregistrement..." : "Enregistrer"}
           </button>
           <button
             type="button"
@@ -615,12 +636,10 @@ export default function ExerciceEditPage() {
           >
             Annuler
           </button>
-          {saved && <span className="text-green-600 text-sm">Sauvegardé.</span>}
+          {saved && <span className="text-green-600 text-sm">Sauvegarde.</span>}
           {saveError && <span className="text-red-500 text-sm">{saveError}</span>}
         </div>
       </form>
-
-      <ListeElementsEditor exerciceId={id} />
     </div>
   )
 }

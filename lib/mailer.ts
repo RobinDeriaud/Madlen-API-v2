@@ -184,6 +184,31 @@ export async function sendInvitationEmail(
   })
 }
 
+// ─── Patient Setup Email ────────────────────────────────────────────────────
+// Envoyé quand un praticien (ou l'admin) crée un compte patient.
+// Contient un lien vers /configurer-compte?token=xxx sur le site.
+// Le patient y complète son profil (prénom, nom, âge, sexe, mot de passe).
+// À la soumission, l'affiliation praticien est auto-confirmée.
+// Réutilisable hors admin : appeler signPatientSetupJwt() + cette fonction.
+export async function sendPatientSetupEmail(
+  to: string,
+  setupUrl: string,
+  praticienNom: string
+): Promise<void> {
+  const html = renderTemplate("patient-setup.html", {
+    SETUP_URL: setupUrl,
+    PRATICIEN_NOM: praticienNom,
+  })
+  const text = `${praticienNom} vous a ajouté en tant que patient sur MADLEN, une application d'entraînement vocal.\n\nPour accéder à votre espace, finalisez la création de votre compte en cliquant sur ce lien :\n${setupUrl}\n\nCe lien est valable 7 jours. Si vous ne connaissez pas ce praticien, ignorez cet e-mail.\n\n© 2025 MADLEN - AMS-Logophonie`
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM ?? "Madlen <ne-pas-repondre@madlen.app>",
+    to,
+    subject: `${praticienNom} vous a ajouté sur MADLEN`,
+    html,
+    text,
+  })
+}
+
 export async function sendConfirmationEmail(to: string, confirmUrl: string): Promise<void> {
   const html = renderTemplate("confirmation.html", { CONFIRM_URL: confirmUrl })
   const text = `Bienvenue chez MADLEN !\n\nConfirmez votre adresse e-mail en cliquant sur ce lien :\n${confirmUrl}\n\nCe lien est valable 48h. Si vous n'êtes pas à l'origine de cette inscription, ignorez ce message.\n\n© 2025 MADLEN - AMS-Logophonie`

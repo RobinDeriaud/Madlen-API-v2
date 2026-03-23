@@ -22,7 +22,15 @@
       "mcp__notion__API-retrieve-a-page",
       "mcp__notion__API-patch-page",
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "Bash(find /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-API-v2 -maxdepth 2 -type f \\\\\\(-name *.dockerfile -o -name *.yml -o -name *.yaml -o -name .dockerignore -o -name ecosystem.config.* \\\\\\))",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(find c:UsersrderiDocumentsPRODEVMADLENGITMadlen-Site/docs -name *.md)",
+      "Bash(rm -rf docs/strapi/)",
+      "Bash(rm -f STRAPI_PERMISSIONS.md docs/guides/STRAPI_RELATIONS_GUIDE.md docs/implementation/STRAPI_EMAIL_IMPLEMENTATION.md)",
+      "Bash(rm -f docs/implementation/IMPLEMENTATION_SUMMARY.md docs/implementation/SECURITY_AUDIT.md)",
+      "Bash(rmdir docs/implementation)",
+      "Bash(find /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/docs/guides -type f -name *.md)"
     ]
   }
 }

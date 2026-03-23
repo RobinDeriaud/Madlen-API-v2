@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { MacroBadge } from "@/lib/macro"
+import { useFieldErrors } from "@/lib/hooks/useFieldErrors"
 
 type ExerciceOption = {
   id: number
@@ -15,10 +16,10 @@ type ExerciceOption = {
 const inputCls =
   "border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, error, children }: { label: string; error?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</label>
+      <label className={`text-xs font-medium uppercase tracking-wide ${error ? "text-red-500" : "text-gray-500"}`}>{label}</label>
       {children}
     </div>
   )
@@ -37,11 +38,16 @@ export default function NouvelleListePage() {
   }, [])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const fe = useFieldErrors()
 
   const [exercices, setExercices] = useState<ExerciceOption[]>([])
   const [loadingEx, setLoadingEx] = useState(true)
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [previewNumero, setPreviewNumero] = useState<number | null>(null)
+  const [imgError, setImgError] = useState(false)
+
+  useEffect(() => { setImgError(false) }, [previewNumero])
 
   useEffect(() => {
     fetch("/api/exercices")
@@ -54,6 +60,8 @@ export default function NouvelleListePage() {
   }, [])
 
   function toggleExercice(id: number) {
+    const ex = exercices.find((e) => e.id === id)
+    if (ex?.numero) setPreviewNumero(ex.numero)
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -80,6 +88,7 @@ export default function NouvelleListePage() {
     e.preventDefault()
     setSaving(true)
     setSaveError(null)
+    fe.clearAll()
 
     const res = await fetch(`/api/users/${userId}/listes`, {
       method: "POST",
@@ -92,10 +101,13 @@ export default function NouvelleListePage() {
     })
 
     if (res.ok) {
+      router.refresh()
       router.push(`/dashboard/users/${userId}?tab=suivi`)
     } else {
       const data = await res.json()
-      setSaveError(data.error ?? "Erreur lors de la création.")
+      if (!fe.setFromApi(data)) {
+        setSaveError(data.error ?? "Erreur lors de la création.")
+      }
       setSaving(false)
     }
   }
@@ -119,30 +131,50 @@ export default function NouvelleListePage() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Nom de la liste">
+          <Field label="Nom de la liste" error={fe.hasError("nom")}>
             <input
               type="text"
-              className={inputCls}
+              className={`${inputCls} ${fe.fieldCls("nom")}`}
               value={nom}
-              onChange={(e) => setNom(e.target.value)}
+              onChange={(e) => { setNom(e.target.value); fe.clearError("nom") }}
               placeholder="Ex : Semaine 1"
             />
           </Field>
-          <Field label="Date">
+          <Field label="Date" error={fe.hasError("date")}>
             <input
               type="date"
-              className={inputCls}
+              className={`${inputCls} ${fe.fieldCls("date")}`}
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => { setDate(e.target.value); fe.clearError("date") }}
             />
           </Field>
         </div>
 
         {/* Exercise picker + preview side by side */}
-        <div className="grid grid-cols-2 gap-4 items-start">
+        <div className="grid grid-cols-2 gap-4 items-stretch">
 
-          {/* Left: picker */}
+          {/* Left: preview + picker */}
           <div className="flex flex-col gap-2">
+            {/* Image preview */}
+            {previewNumero && (
+              <div className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded bg-gray-50">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Aperçu — Exercice {previewNumero}
+                </span>
+                {imgError ? (
+                  <p className="text-sm text-gray-400 italic py-4">Pas d&apos;illustration pour cet exercice</p>
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={`/api/exercices-img/${previewNumero}`}
+                    alt={`Exercice ${previewNumero}`}
+                    className="max-h-64 rounded shadow-sm"
+                    onError={() => setImgError(true)}
+                  />
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
                 Exercices
@@ -204,7 +236,7 @@ export default function NouvelleListePage() {
                 {selected.size} exercice{selected.size !== 1 ? "s" : ""}
               </span>
             </div>
-            <div className="border border-gray-200 rounded overflow-y-auto max-h-[28rem] min-h-16 bg-gray-50">
+            <div className="border border-gray-200 rounded overflow-y-auto flex-1 min-h-16 bg-gray-50">
               {selectedExercices.length === 0 ? (
                 <p className="text-sm text-gray-400 px-3 py-4 text-center">
                   Aucun exercice sélectionné

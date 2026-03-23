@@ -1,16 +1,21 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { sendConfirmationEmail } from "@/lib/mailer"
+import { zodFieldError } from "@/lib/validate"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import { z } from "zod"
 
 const createSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(6).optional(),
   nom: z.string().nullable().optional(),
   prenom: z.string().nullable().optional(),
   user_type: z.enum(["NONE", "PATIENT", "PRATICIEN"]).optional(),
+  age: z.number().int().positive().nullable().optional(),
+  sexe: z.enum(["FEMININ", "MASCULIN"]).nullable().optional(),
+  // Si true, ne pas envoyer d'email de confirmation (le setup email sera envoyé séparément)
+  skipConfirmationEmail: z.boolean().optional(),
 })
 
 export async function POST(req: Request) {
@@ -19,14 +24,14 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const parsed = createSchema.safeParse(body)
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
-    const msg = first ? `${first.path.join(".")}: ${first.message}` : "Invalid input"
-    return Response.json({ error: msg }, { status: 400 })
-  }
+  if (!parsed.success) return zodFieldError(parsed.error)
 
-  const { password, ...rest } = parsed.data
-  const passwordHash = await bcrypt.hash(password, 10)
+  const { password, age, sexe, skipConfirmationEmail, ...rest } = parsed.data
+
+  // Si pas de mot de passe fourni, placeholder non-matchable par bcrypt
+  const passwordHash = password
+    ? await bcrypt.hash(password, 10)
+    : "!SETUP_PENDING"
 
   try {
     const user = await prisma.user.create({
@@ -34,22 +39,31 @@ export async function POST(req: Request) {
     })
 
     if (rest.user_type === "PATIENT") {
-      await prisma.patient.create({ data: { userId: user.id } })
+      await prisma.patient.create({
+        data: {
+          userId: user.id,
+          ...(age != null ? { age } : {}),
+          ...(sexe ? { sexe } : {}),
+        },
+      })
     } else if (rest.user_type === "PRATICIEN") {
       await prisma.praticien.create({ data: { userId: user.id } })
     }
 
-    const token = crypto.randomBytes(32).toString("hex")
-    const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000)
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { emailConfirmToken: token, emailConfirmExpiry: expiry },
-    })
+    // Envoi de l'email de confirmation classique (sauf si skipConfirmationEmail)
+    if (!skipConfirmationEmail) {
+      const token = crypto.randomBytes(32).toString("hex")
+      const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000)
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { emailConfirmToken: token, emailConfirmExpiry: expiry },
+      })
 
-    const confirmUrl = `${process.env.APP_URL}/confirm-email?token=${token}`
-    sendConfirmationEmail(user.email, confirmUrl).catch((err) =>
-      console.error("[email] Confirmation send failed:", err)
-    )
+      const confirmUrl = `${process.env.APP_URL}/confirm-email?token=${token}`
+      sendConfirmationEmail(user.email, confirmUrl).catch((err) =>
+        console.error("[email] Confirmation send failed:", err)
+      )
+    }
 
     return Response.json({ id: user.id }, { status: 201 })
   } catch (err) {

@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { useFieldErrors } from "@/lib/hooks/useFieldErrors"
 
 const MACRO_OPTIONS = [
   { value: "AJUSTEMENT_100", label: "Ajustement (100)" },
@@ -17,6 +18,15 @@ const MACRO_OPTIONS = [
 const inputCls =
   "border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
 
+function Field({ label, error, children }: { label: string; error?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className={`text-xs font-medium uppercase tracking-wide ${error ? "text-red-500" : "text-gray-500"}`}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
 export default function NouvelExercicePage() {
   const router = useRouter()
   const [numero, setNumero] = useState("")
@@ -24,11 +34,13 @@ export default function NouvelExercicePage() {
   const [macro, setMacro] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fe = useFieldErrors()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError(null)
+    fe.clearAll()
 
     const res = await fetch("/api/exercices", {
       method: "POST",
@@ -42,10 +54,13 @@ export default function NouvelExercicePage() {
 
     if (res.ok) {
       const data = await res.json()
+      router.refresh()
       router.push(`/dashboard/exercices/${data.id}`)
     } else {
       const data = await res.json()
-      setError(data.error ?? "Erreur lors de la création.")
+      if (!fe.setFromApi(data)) {
+        setError(data.error ?? "Erreur lors de la création.")
+      }
       setSaving(false)
     }
   }
@@ -61,37 +76,34 @@ export default function NouvelExercicePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Numéro</label>
+        <Field label="Numéro" error={fe.hasError("numero")}>
           <input
             type="number"
-            className={inputCls}
+            className={`${inputCls} ${fe.fieldCls("numero")}`}
             value={numero}
-            onChange={(e) => setNumero(e.target.value)}
+            onChange={(e) => { setNumero(e.target.value); fe.clearError("numero") }}
             placeholder="ex: 101"
           />
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nom</label>
+        <Field label="Nom" error={fe.hasError("nom")}>
           <input
             type="text"
-            className={inputCls}
+            className={`${inputCls} ${fe.fieldCls("nom")}`}
             value={nom}
-            onChange={(e) => setNom(e.target.value)}
+            onChange={(e) => { setNom(e.target.value); fe.clearError("nom") }}
             placeholder="Nom de l'exercice"
           />
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Macro</label>
-          <select className={inputCls} value={macro} onChange={(e) => setMacro(e.target.value)}>
+        <Field label="Macro" error={fe.hasError("macro")}>
+          <select className={`${inputCls} ${fe.fieldCls("macro")}`} value={macro} onChange={(e) => { setMacro(e.target.value); fe.clearError("macro") }}>
             <option value="">— aucune —</option>
             {MACRO_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-        </div>
+        </Field>
 
         {error && <p className="text-red-500 text-sm">{error}</p>}
 

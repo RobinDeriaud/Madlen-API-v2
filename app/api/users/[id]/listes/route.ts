@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
 
 const createListeSchema = z.object({
@@ -57,7 +58,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const body = await req.json()
   const parsed = createListeSchema.safeParse(body)
-  if (!parsed.success) return Response.json({ error: "Invalid input" }, { status: 400 })
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   try {
     const patientId = await getOrCreatePatientId(userId)

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useRef, useState, Suspense } from "react"
 import { MACRO_CONFIG, MacroBadge } from "@/lib/macro"
+import { useFieldErrors } from "@/lib/hooks/useFieldErrors"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -84,10 +85,10 @@ type UserData = {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, error, children }: { label: string; error?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</label>
+      <label className={`text-xs font-medium uppercase tracking-wide ${error ? "text-red-500" : "text-gray-500"}`}>{label}</label>
       {children}
     </div>
   )
@@ -167,10 +168,15 @@ function NouvelleListeModal({ userId, onClose, onCreated }: {
   const [date, setDate] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const mlFe = useFieldErrors()
   const [exercices, setExercices] = useState<ExerciceOption[]>([])
   const [loadingEx, setLoadingEx] = useState(true)
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [previewNumero, setPreviewNumero] = useState<number | null>(null)
+  const [imgError, setImgError] = useState(false)
+
+  useEffect(() => { setImgError(false) }, [previewNumero])
 
   useEffect(() => {
     setDate(new Date().toISOString().slice(0, 10))
@@ -190,6 +196,8 @@ function NouvelleListeModal({ userId, onClose, onCreated }: {
   }, [onClose])
 
   function toggleExercice(id: number) {
+    const ex = exercices.find((e) => e.id === id)
+    if (ex?.numero) setPreviewNumero(ex.numero)
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -212,6 +220,7 @@ function NouvelleListeModal({ userId, onClose, onCreated }: {
     e.preventDefault()
     setSaving(true)
     setSaveError(null)
+    mlFe.clearAll()
     const res = await fetch(`/api/users/${userId}/listes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -222,7 +231,9 @@ function NouvelleListeModal({ userId, onClose, onCreated }: {
       onClose()
     } else {
       const data = await res.json()
-      setSaveError(data.error ?? "Erreur lors de la création.")
+      if (!mlFe.setFromApi(data)) {
+        setSaveError(data.error ?? "Erreur lors de la création.")
+      }
       setSaving(false)
     }
   }
@@ -252,25 +263,45 @@ function NouvelleListeModal({ userId, onClose, onCreated }: {
         <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nom de la liste</label>
+              <label className={`text-xs font-medium uppercase tracking-wide ${mlFe.hasError("nom") ? "text-red-500" : "text-gray-500"}`}>Nom de la liste</label>
               <input
                 type="text"
-                className={inputCls}
+                className={`${inputCls} ${mlFe.fieldCls("nom")}`}
                 value={nom}
-                onChange={(e) => setNom(e.target.value)}
+                onChange={(e) => { setNom(e.target.value); mlFe.clearError("nom") }}
                 placeholder="Ex : Semaine 1"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Date</label>
-              <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
+              <label className={`text-xs font-medium uppercase tracking-wide ${mlFe.hasError("date") ? "text-red-500" : "text-gray-500"}`}>Date</label>
+              <input type="date" className={`${inputCls} ${mlFe.fieldCls("date")}`} value={date} onChange={(e) => { setDate(e.target.value); mlFe.clearError("date") }} />
             </div>
           </div>
 
           {/* Picker + preview */}
-          <div className="grid grid-cols-2 gap-4 items-start">
-            {/* Left: picker */}
+          <div className="grid grid-cols-2 gap-4 items-stretch">
+            {/* Left: preview + picker */}
             <div className="flex flex-col gap-2">
+              {/* Image preview */}
+              {previewNumero && (
+                <div className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded bg-gray-50">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Aperçu — Exercice {previewNumero}
+                  </span>
+                  {imgError ? (
+                    <p className="text-sm text-gray-400 italic py-4">Pas d&apos;illustration pour cet exercice</p>
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={`/api/exercices-img/${previewNumero}`}
+                      alt={`Exercice ${previewNumero}`}
+                      className="max-h-48 rounded shadow-sm"
+                      onError={() => setImgError(true)}
+                    />
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Exercices</span>
                 <span className="text-xs text-gray-400">{exercices.length} disponibles</span>
@@ -324,7 +355,7 @@ function NouvelleListeModal({ userId, onClose, onCreated }: {
                   {selected.size} exercice{selected.size !== 1 ? "s" : ""}
                 </span>
               </div>
-              <div className="border border-gray-200 rounded overflow-y-auto max-h-72 min-h-12 bg-gray-50">
+              <div className="border border-gray-200 rounded overflow-y-auto flex-1 min-h-12 bg-gray-50">
                 {selectedExercices.length === 0 ? (
                   <p className="text-sm text-gray-400 px-3 py-4 text-center">Aucun exercice sélectionné</p>
                 ) : selectedExercices.map((ex, idx) => (
@@ -383,10 +414,15 @@ function EditListeModal({ userId, listeId, onClose, onSaved }: {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const elFe = useFieldErrors()
   const [exercices, setExercices] = useState<ExerciceOption[]>([])
   const [loadingEx, setLoadingEx] = useState(true)
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [previewNumero, setPreviewNumero] = useState<number | null>(null)
+  const [imgError, setImgError] = useState(false)
+
+  useEffect(() => { setImgError(false) }, [previewNumero])
 
   useEffect(() => {
     Promise.all([
@@ -414,6 +450,8 @@ function EditListeModal({ userId, listeId, onClose, onSaved }: {
   }, [onClose])
 
   function toggleExercice(id: number) {
+    const ex = exercices.find((e) => e.id === id)
+    if (ex?.numero) setPreviewNumero(ex.numero)
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -439,6 +477,7 @@ function EditListeModal({ userId, listeId, onClose, onSaved }: {
     setSaving(true)
     setSaved(false)
     setSaveError(null)
+    elFe.clearAll()
     const res = await fetch(`/api/users/${userId}/listes/${listeId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -449,7 +488,9 @@ function EditListeModal({ userId, listeId, onClose, onSaved }: {
       onSaved()
     } else {
       const data = await res.json()
-      setSaveError(data.error ?? "Erreur lors de la sauvegarde.")
+      if (!elFe.setFromApi(data)) {
+        setSaveError(data.error ?? "Erreur lors de la sauvegarde.")
+      }
     }
     setSaving(false)
   }
@@ -482,22 +523,22 @@ function EditListeModal({ userId, listeId, onClose, onSaved }: {
           <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nom de la liste</label>
+                <label className={`text-xs font-medium uppercase tracking-wide ${elFe.hasError("nom") ? "text-red-500" : "text-gray-500"}`}>Nom de la liste</label>
                 <input
                   type="text"
-                  className={inputCls}
+                  className={`${inputCls} ${elFe.fieldCls("nom")}`}
                   value={nom}
-                  onChange={(e) => { setNom(e.target.value); setSaved(false); setSaveError(null) }}
+                  onChange={(e) => { setNom(e.target.value); setSaved(false); setSaveError(null); elFe.clearError("nom") }}
                   placeholder="Ex : Semaine 1"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Date</label>
+                <label className={`text-xs font-medium uppercase tracking-wide ${elFe.hasError("date") ? "text-red-500" : "text-gray-500"}`}>Date</label>
                 <input
                   type="date"
-                  className={inputCls}
+                  className={`${inputCls} ${elFe.fieldCls("date")}`}
                   value={date}
-                  onChange={(e) => { setDate(e.target.value); setSaved(false); setSaveError(null) }}
+                  onChange={(e) => { setDate(e.target.value); setSaved(false); setSaveError(null); elFe.clearError("date") }}
                 />
               </div>
             </div>
@@ -513,9 +554,29 @@ function EditListeModal({ userId, listeId, onClose, onSaved }: {
             </label>
 
             {/* Picker + preview */}
-            <div className="grid grid-cols-2 gap-4 items-start">
-              {/* Left: picker */}
+            <div className="grid grid-cols-2 gap-4 items-stretch">
+              {/* Left: preview + picker */}
               <div className="flex flex-col gap-2">
+                {/* Image preview */}
+                {previewNumero && (
+                  <div className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded bg-gray-50">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Aperçu — Exercice {previewNumero}
+                    </span>
+                    {imgError ? (
+                      <p className="text-sm text-gray-400 italic py-4">Pas d&apos;illustration pour cet exercice</p>
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={`/api/exercices-img/${previewNumero}`}
+                        alt={`Exercice ${previewNumero}`}
+                        className="max-h-48 rounded shadow-sm"
+                        onError={() => setImgError(true)}
+                      />
+                    )}
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Exercices</span>
                   <span className="text-xs text-gray-400">{exercices.length} disponibles</span>
@@ -569,7 +630,7 @@ function EditListeModal({ userId, listeId, onClose, onSaved }: {
                     {selected.size} exercice{selected.size !== 1 ? "s" : ""}
                   </span>
                 </div>
-                <div className="border border-gray-200 rounded overflow-y-auto max-h-72 min-h-12 bg-gray-50">
+                <div className="border border-gray-200 rounded overflow-y-auto flex-1 min-h-12 bg-gray-50">
                   {selectedExercices.length === 0 ? (
                     <p className="text-sm text-gray-400 px-3 py-4 text-center">Aucun exercice sélectionné</p>
                   ) : selectedExercices.map((ex, idx) => (
@@ -662,6 +723,172 @@ function ConfirmDeleteModal({ displayName, onClose, onConfirm, deleting }: {
             Annuler
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Create Patient Modal ───────────────────────────────────────────────────
+
+function CreatePatientModal({ praticienUserId, onClose, onCreated }: {
+  praticienUserId: string
+  onClose: () => void
+  onCreated: (patient: PatientSummary) => void
+}) {
+  const [f, setF] = useState({ email: "", nom: "", prenom: "", age: "", sexe: "" })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const cpFe = useFieldErrors()
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape" && !saving) onClose() }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [onClose, saving])
+
+  function set(key: keyof typeof f) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      setF((prev) => ({ ...prev, [key]: e.target.value }))
+      setError(null)
+      cpFe.clearError(key)
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    cpFe.clearAll()
+
+    // Client-side validation
+    const valid = cpFe.validate([
+      { field: "email", value: f.email, label: "Email" },
+    ])
+    if (!valid) { setSaving(false); return }
+
+    try {
+      // 1. Créer le user PATIENT sans mot de passe (setup par email)
+      const createRes = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: f.email,
+          nom: f.nom || null,
+          prenom: f.prenom || null,
+          user_type: "PATIENT",
+          age: f.age ? parseInt(f.age) : null,
+          sexe: f.sexe || null,
+          skipConfirmationEmail: true,
+        }),
+      })
+
+      if (!createRes.ok) {
+        const data = await createRes.json()
+        if (!cpFe.setFromApi(data)) {
+          setError(data.error ?? "Erreur lors de la création.")
+        }
+        setSaving(false)
+        return
+      }
+
+      const { id: newUserId } = await createRes.json()
+
+      // 2. Associer au praticien (envoie l'email de setup automatiquement)
+      const assocRes = await fetch(`/api/users/${praticienUserId}/patients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userPatientId: newUserId }),
+      })
+
+      if (!assocRes.ok) {
+        const data = await assocRes.json()
+        setError(data.error ?? "Patient créé mais erreur lors de l'association.")
+        setSaving(false)
+        return
+      }
+
+      const { patientId } = await assocRes.json()
+
+      onCreated({
+        id: patientId,
+        age: f.age ? parseInt(f.age) : null,
+        sexe: (f.sexe || null) as Sexe | null,
+        praticienConfirmStatus: "PENDING" as PraticienConfirmStatus,
+        user: { id: newUserId, nom: f.nom || null, prenom: f.prenom || null, email: f.email, confirmed: false },
+      })
+      onClose()
+    } catch {
+      setError("Erreur réseau.")
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
+      onClick={() => !saving && onClose()}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-bold text-gray-800">Créer un patient</h2>
+        <p className="text-sm text-gray-500">
+          Le patient recevra un email pour configurer son mot de passe et sera automatiquement associé à ce praticien.
+        </p>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label className={`text-xs font-medium uppercase tracking-wide ${cpFe.hasError("email") ? "text-red-500" : "text-gray-500"}`}>Email *</label>
+            <input type="email" className={`${inputCls} ${cpFe.fieldCls("email")}`} value={f.email} onChange={set("email")} placeholder="marie@exemple.fr" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Prénom</label>
+              <input type="text" className={inputCls} value={f.prenom} onChange={set("prenom")} placeholder="Marie" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nom</label>
+              <input type="text" className={inputCls} value={f.nom} onChange={set("nom")} placeholder="Dupont" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Âge</label>
+              <input type="number" min="1" max="120" className={inputCls} value={f.age} onChange={set("age")} placeholder="45" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Sexe</label>
+              <select className={inputCls} value={f.sexe} onChange={set("sexe")}>
+                <option value="">—</option>
+                <option value="FEMININ">Féminin</option>
+                <option value="MASCULIN">Masculin</option>
+              </select>
+            </div>
+          </div>
+
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+
+          <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50"
+            >
+              {saving ? "Création…" : "Créer et envoyer l'invitation"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
@@ -899,6 +1126,7 @@ function UserEditInner() {
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const fe = useFieldErrors()
 
   const [f, setF] = useState({
     email: "",
@@ -956,6 +1184,7 @@ function UserEditInner() {
   const [deletingListeId, setDeletingListeId] = useState<number | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showCreatePatient, setShowCreatePatient] = useState(false)
 
   // Determine initial tab from searchParams
   const defaultTab = searchParams.get("tab") ?? "general"
@@ -1017,6 +1246,7 @@ function UserEditInner() {
     setF((prev) => ({ ...prev, [key]: value }))
     setSaved(false)
     setSaveError(null)
+    fe.clearError(key)
   }
 
   function setPat_(key: keyof typeof pat) {
@@ -1187,6 +1417,13 @@ function UserEditInner() {
     setSaving(true)
     setSaveError(null)
     setSaved(false)
+    fe.clearAll()
+
+    // Client-side validation: email is required
+    const valid = fe.validate([
+      { field: "email", value: f.email, label: "Email" },
+    ])
+    if (!valid) { setSaving(false); return }
 
     const body: Record<string, unknown> = {
       email: f.email || undefined,
@@ -1219,7 +1456,9 @@ function UserEditInner() {
       setSaved(true)
     } else {
       const data = await res.json()
-      setSaveError(data.error ?? "Erreur lors de la sauvegarde.")
+      if (!fe.setFromApi(data)) {
+        setSaveError(data.error ?? "Erreur lors de la sauvegarde.")
+      }
     }
     setSaving(false)
   }
@@ -1262,6 +1501,7 @@ function UserEditInner() {
     setDeleting(true)
     const res = await fetch(`/api/users/${id}`, { method: "DELETE" })
     if (res.ok) {
+      router.refresh()
       router.push("/dashboard/users")
     } else {
       setDeleting(false)
@@ -1331,10 +1571,10 @@ function UserEditInner() {
               />
             </Field>
           </div>
-          <Field label="Email">
+          <Field label="Email *" error={fe.hasError("email")}>
             <input
               type="email"
-              className={inputCls}
+              className={`${inputCls} ${fe.fieldCls("email")}`}
               value={f.email}
               onChange={(e) => setField("email", e.target.value)}
             />
@@ -1504,16 +1744,17 @@ function UserEditInner() {
                 </table>
               )}
 
-              <div ref={searchContainerRef} className="relative mt-3">
-                <input
-                  type="text"
-                  placeholder="Rechercher un patient à ajouter…"
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
-                  onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
-                  className={inputCls}
-                />
+              <div className="flex items-center gap-2 mt-3">
+                <div ref={searchContainerRef} className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Rechercher un patient à ajouter…"
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
+                    onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+                    className={inputCls + " w-full"}
+                  />
                 {searching && (
                   <p className="text-xs text-gray-400 mt-1">Recherche…</p>
                 )}
@@ -1545,6 +1786,14 @@ function UserEditInner() {
                     ))}
                   </div>
                 )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePatient(true)}
+                  className="px-3 py-1.5 bg-gray-800 text-white text-sm rounded hover:bg-gray-700 whitespace-nowrap shrink-0"
+                >
+                  + Créer un patient
+                </button>
               </div>
             </>
           )}
@@ -1796,6 +2045,13 @@ function UserEditInner() {
           onClose={() => setShowDeleteModal(false)}
           onConfirm={handleDelete}
           deleting={deleting}
+        />
+      )}
+      {showCreatePatient && (
+        <CreatePatientModal
+          praticienUserId={id}
+          onClose={() => setShowCreatePatient(false)}
+          onCreated={(patient) => setPatients((prev) => [...prev, patient])}
         />
       )}
     </div>

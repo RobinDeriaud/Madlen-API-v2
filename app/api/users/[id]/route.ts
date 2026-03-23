@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
 
 const updateSchema = z.object({
@@ -117,7 +118,7 @@ export async function PUT(
 
   const body = await req.json()
   const parsed = updateSchema.safeParse(body)
-  if (!parsed.success) return Response.json({ error: "Invalid input" }, { status: 400 })
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   const { profil_patient, profil_praticien, ...userFields } = parsed.data
 

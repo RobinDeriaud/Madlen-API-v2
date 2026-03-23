@@ -333,6 +333,7 @@ export const swaggerSpec = {
       },
       post: {
         summary: "Créer un utilisateur",
+        description: "Crée un utilisateur. Le mot de passe est optionnel : si omis, le hash est un placeholder (`!SETUP_PENDING`) et le compte devra être finalisé via `/public/setup-patient-account`. Utiliser `skipConfirmationEmail: true` pour ne pas envoyer l'email de confirmation classique (utile quand l'email de setup patient sera envoyé séparément via l'association praticien).",
         tags: ["Users"],
         requestBody: {
           required: true,
@@ -340,13 +341,16 @@ export const swaggerSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["email", "password"],
+                required: ["email"],
                 properties: {
                   email: { type: "string", format: "email" },
-                  password: { type: "string", minLength: 6 },
+                  password: { type: "string", minLength: 6, description: "Optionnel. Si omis, le compte est en attente de setup." },
                   nom: { type: "string", nullable: true },
                   prenom: { type: "string", nullable: true },
                   user_type: { type: "string", enum: ["NONE", "PATIENT", "PRATICIEN"] },
+                  age: { type: "integer", nullable: true, description: "Âge du patient (écrit dans le profil patient si user_type=PATIENT)" },
+                  sexe: { type: "string", enum: ["FEMININ", "MASCULIN"], nullable: true, description: "Sexe du patient" },
+                  skipConfirmationEmail: { type: "boolean", description: "Si true, ne pas envoyer l'email de confirmation classique" },
                 },
               },
             },
@@ -479,7 +483,11 @@ export const swaggerSpec = {
       },
       post: {
         summary: "Associer un patient à un praticien",
-        description: "Crée ou met à jour le lien patient↔praticien. Si le praticien change, le statut repasse à PENDING et un email de confirmation est envoyé au patient.",
+        description:
+          "Crée ou met à jour le lien patient↔praticien. Deux comportements selon l'état du compte patient :\n\n" +
+          "- **Compte sans mot de passe** (`passwordHash = !SETUP_PENDING`) : envoie un email de setup (`/configurer-compte?token=xxx`). Quand le patient finalise son compte, l'affiliation praticien est auto-confirmée.\n\n" +
+          "- **Compte existant** (mot de passe défini) : envoie l'email classique de confirmation praticien (`/confirmer-praticien?token=xxx`).\n\n" +
+          "Réutilisable hors admin panel.",
         tags: ["Users"],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" }, description: "userId du praticien" }],
         requestBody: {
@@ -506,7 +514,8 @@ export const swaggerSpec = {
                   properties: {
                     ok: { type: "boolean" },
                     patientId: { type: "integer" },
-                    confirmationSent: { type: "boolean", description: "true si un email de confirmation a été envoyé au patient" },
+                    emailSent: { type: "boolean", description: "true si un email (setup ou confirmation) a été envoyé" },
+                    needsSetup: { type: "boolean", description: "true si le patient n'a pas encore de mot de passe (email de setup envoyé)" },
                   },
                 },
               },
@@ -1207,6 +1216,108 @@ export const swaggerSpec = {
           "401": { description: "Lien invalide ou expiré", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "404": { description: "Patient introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "409": { description: "Le lien ne correspond plus au praticien actuel", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    // ─── Routes publiques — Setup compte patient ───────────────────────────
+
+    "/public/setup-patient-account": {
+      get: {
+        summary: "Infos pré-remplies pour le formulaire de setup patient",
+        description:
+          "Vérifie le token JWT `patient-setup` et retourne les infos du patient (email, nom, prénom, âge, sexe) pour pré-remplir le formulaire de configuration de compte.\n\n" +
+          "Appelé par la page `/configurer-compte` du site frontend.",
+        tags: ["Public — Patient Setup"],
+        parameters: [
+          { name: "token", in: "query", required: true, schema: { type: "string" }, description: "JWT patient-setup (valable 7 jours)" },
+        ],
+        responses: {
+          "200": {
+            description: "Infos patient",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    email: { type: "string", format: "email" },
+                    nom: { type: "string", nullable: true },
+                    prenom: { type: "string", nullable: true },
+                    age: { type: "integer", nullable: true },
+                    sexe: { type: "string", enum: ["FEMININ", "MASCULIN"], nullable: true },
+                    praticienId: { type: "integer" },
+                  },
+                },
+              },
+            },
+          },
+          "400": { description: "Token manquant", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Token invalide ou expiré", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { description: "Utilisateur introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "409": {
+            description: "Compte déjà configuré",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    error: { type: "string" },
+                    alreadySetup: { type: "boolean" },
+                  },
+                },
+              },
+            },
+          },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      post: {
+        summary: "Finaliser le compte patient",
+        description:
+          "Appelé depuis la page `/configurer-compte` du site. Valide le token JWT, définit le mot de passe, complète le profil (tous les champs obligatoires), marque le compte comme confirmé et **auto-confirme l'affiliation praticien** (`praticienConfirmStatus = CONFIRMED`).\n\n" +
+          "Retourne un JWT de connexion pour connecter le patient immédiatement.\n\n" +
+          "**Réutilisable hors admin panel** : il suffit de signer un JWT via `signPatientSetupJwt()` et d'appeler cet endpoint.",
+        tags: ["Public — Patient Setup"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["token", "password", "passwordConfirmation", "prenom", "nom", "age", "sexe"],
+                properties: {
+                  token: { type: "string", description: "JWT patient-setup reçu dans le lien email" },
+                  password: { type: "string", minLength: 6 },
+                  passwordConfirmation: { type: "string", minLength: 6 },
+                  prenom: { type: "string", minLength: 1 },
+                  nom: { type: "string", minLength: 1 },
+                  age: { type: "integer", minimum: 1, description: "Âge du patient" },
+                  sexe: { type: "string", enum: ["FEMININ", "MASCULIN"] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Compte configuré + JWT de connexion",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    jwt: { type: "string", description: "JWT de connexion (30 jours)" },
+                  },
+                },
+              },
+            },
+          },
+          "400": { description: "Données invalides (champs manquants, mots de passe ne correspondent pas)", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Token invalide ou expiré", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { description: "Utilisateur introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "409": { description: "Compte déjà configuré", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "500": { $ref: "#/components/responses/InternalError" },
         },
       },

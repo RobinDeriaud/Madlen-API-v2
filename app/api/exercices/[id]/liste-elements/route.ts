@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
 
 const elementSchema = z.object({
@@ -45,7 +46,7 @@ export async function PUT(
 
   const body = await req.json()
   const parsed = batchSchema.safeParse(body)
-  if (!parsed.success) return Response.json({ error: "Invalid input" }, { status: 400 })
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   try {
     await prisma.$transaction(async (tx) => {

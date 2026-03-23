@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { createUserSchema } from "@/lib/validate"
+import { createUserSchema, zodFieldError } from "@/lib/validate"
 import bcrypt from "bcryptjs"
 
 export async function GET() {
@@ -34,9 +34,7 @@ export async function POST(req: Request) {
   }
 
   const parsed = createUserSchema.safeParse(body)
-  if (!parsed.success) {
-    return Response.json({ error: "Invalid input" }, { status: 400 })
-  }
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   const { email, password, role } = parsed.data
   const passwordHash = await bcrypt.hash(password, 12)
