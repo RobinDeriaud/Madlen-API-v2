@@ -9,7 +9,20 @@
       "Bash(npx prisma migrate deploy)",
       "Bash(npx tsx -e \"import { swaggerSpec } from ''./lib/swagger''; console.log\\(''OK, paths:'', Object.keys\\(swaggerSpec.paths\\).length\\)\")",
       "Bash(npx prisma migrate dev --name add_email_change_fields)",
-      "Bash(npx prisma migrate dev --name add_suivi_prescription_audio)"
+      "Bash(npx prisma migrate dev --name add_suivi_prescription_audio)",
+      "mcp__notion__API-post-search",
+      "mcp__notion__API-get-block-children",
+      "mcp__notion__API-retrieve-a-block",
+      "mcp__notion__API-post-page",
+      "mcp__notion__API-patch-block-children",
+      "mcp__notion__API-move-page",
+      "Bash(find ~/.claude -name *.json -type f)",
+      "Read(//c/Users/rderi/.vscode/**)",
+      "Read(//c/Users/rderi/AppData/Roaming/Code/User/**)",
+      "mcp__notion__API-retrieve-a-page",
+      "mcp__notion__API-patch-page",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
     ]
   }
 }
