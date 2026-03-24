@@ -30,7 +30,13 @@
       "Bash(rm -f STRAPI_PERMISSIONS.md docs/guides/STRAPI_RELATIONS_GUIDE.md docs/implementation/STRAPI_EMAIL_IMPLEMENTATION.md)",
       "Bash(rm -f docs/implementation/IMPLEMENTATION_SUMMARY.md docs/implementation/SECURITY_AUDIT.md)",
       "Bash(rmdir docs/implementation)",
-      "Bash(find /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/docs/guides -type f -name *.md)"
+      "Bash(find /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/docs/guides -type f -name *.md)",
+      "Bash(git -C /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site log --all --since=\"midnight\" --pretty=format:\"%h %s\" --no-merges)",
+      "Bash(git -C /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site log --all --since=\"midnight\" --stat --no-merges)",
+      "Bash(find /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-API-v2 -type f \\\\\\(-name .yml -o -name .yaml -o -name Makefile -o -name *.config.ts -o -name *.config.js \\\\\\) ! -path */node_modules/*)",
+      "Bash(mv .env.local .env)",
+      "Bash(rm .env.production)",
+      "Bash(find c:UsersrderiDocumentsPRODEVMADLENGITMadlen-API-v2appapipublic -type f -name *.ts)"
     ]
   }
 }

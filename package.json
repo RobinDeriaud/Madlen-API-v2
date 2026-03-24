@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3001",
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -14,7 +14,7 @@
     "db:backup": "bash scripts/backup-db.sh",
     "db:restore": "bash scripts/restore-db.sh",
     "db:studio": "prisma studio",
-    "db:baseline": "prisma migrate resolve --applied 0_init",
+    "db:baseline": "bash scripts/db-baseline.sh",
     "db:import-exercices": "node scripts/import-exercices.mjs"
   },
   "dependencies": {

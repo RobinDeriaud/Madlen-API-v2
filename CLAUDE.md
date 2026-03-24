@@ -201,7 +201,7 @@ npm run db:studio
 | `npm run db:migrate` | Crée + applique une migration (local uniquement) |
 | `npm run db:deploy` | Applique les migrations en production (VPS, sans prompt) |
 | `npm run db:studio` | Interface visuelle pour parcourir/modifier les données |
-| `npm run db:baseline` | Marque une migration comme déjà appliquée (cas exceptionnel) |
+| `npm run db:baseline` | Baseline sécurisé : vérifie tables/colonnes avant de marquer 0_init comme appliquée. Bloque si incohérence. |
 
 ---
 
