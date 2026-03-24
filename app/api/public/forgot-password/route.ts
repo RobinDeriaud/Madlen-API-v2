@@ -4,7 +4,7 @@ import crypto from "crypto"
 import { z } from "zod"
 
 const schema = z.object({
-  email: z.string().email(),
+  email: z.string().email().trim().toLowerCase(),
 })
 
 export async function POST(req: Request) {

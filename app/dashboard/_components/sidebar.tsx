@@ -7,6 +7,7 @@ const navItems = [
   { href: "/dashboard", label: "Accueil" },
   { href: "/dashboard/exercices", label: "Exercices" },
   { href: "/dashboard/users", label: "Utilisateurs" },
+  { href: "/dashboard/pages", label: "Pages Web" },
 ]
 
 export function Sidebar() {
@@ -19,7 +20,7 @@ export function Sidebar() {
           key={item.href}
           href={item.href}
           className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
-            pathname === item.href
+            pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"))
               ? "bg-blue-100 text-blue-700"
               : "text-gray-700 hover:bg-gray-100"
           }`}

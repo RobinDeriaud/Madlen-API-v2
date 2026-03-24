@@ -7,13 +7,14 @@ export async function GET(req: Request) {
 
     if (slug) {
       const page = await prisma.pageStatique.findFirst({
-        where: { slug },
+        where: { slug, publishedAt: { not: null } },
       })
       if (!page) return Response.json({ error: "Page introuvable" }, { status: 404 })
       return Response.json({ data: page })
     }
 
     const pages = await prisma.pageStatique.findMany({
+      where: { publishedAt: { not: null } },
       orderBy: { createdAt: "asc" },
     })
 

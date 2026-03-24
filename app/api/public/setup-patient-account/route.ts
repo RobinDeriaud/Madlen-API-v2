@@ -69,8 +69,8 @@ export async function GET(req: Request) {
 
 const setupSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(6),
-  passwordConfirmation: z.string().min(6),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
+  passwordConfirmation: z.string().min(8),
   prenom: z.string().min(1, "Le prénom est requis"),
   nom: z.string().min(1, "Le nom est requis"),
   age: z.number().int().positive("L'âge doit être positif"),

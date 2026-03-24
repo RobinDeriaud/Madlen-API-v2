@@ -5,8 +5,8 @@ import crypto from "crypto"
 import { z } from "zod"
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().email().trim().toLowerCase(),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
   nom: z.string().min(1),
   prenom: z.string().min(1),
   user_type: z.enum(["PATIENT", "PRATICIEN"]),

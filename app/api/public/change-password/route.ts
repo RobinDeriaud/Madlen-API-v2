@@ -5,8 +5,8 @@ import { z } from "zod"
 
 const schema = z.object({
   currentPassword: z.string().min(1),
-  password: z.string().min(6),
-  passwordConfirmation: z.string().min(6),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
+  passwordConfirmation: z.string().min(8),
 }).refine((data) => data.password === data.passwordConfirmation, {
   message: "Les mots de passe ne correspondent pas",
   path: ["passwordConfirmation"],

@@ -7,8 +7,8 @@ import crypto from "crypto"
 import { z } from "zod"
 
 const createSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6).optional(),
+  email: z.string().email().trim().toLowerCase(),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères").optional(),
   nom: z.string().nullable().optional(),
   prenom: z.string().nullable().optional(),
   user_type: z.enum(["NONE", "PATIENT", "PRATICIEN"]).optional(),

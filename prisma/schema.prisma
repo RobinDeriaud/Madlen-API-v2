@@ -263,7 +263,7 @@ model ListeElement {
 model PageStatique {
   id            Int       @id @default(autoincrement())
   nom           String?
-  slug          String?
+  slug          String?   @unique
   contenu       String?
   date_modified DateTime? @map("date_modified") @db.Date
   publishedAt   DateTime? @map("published_at")

@@ -37,7 +37,19 @@
       "Bash(mv .env.local .env)",
       "Bash(rm .env.production)",
       "Bash(find c:UsersrderiDocumentsPRODEVMADLENGITMadlen-API-v2appapipublic -type f -name *.ts)",
-      "WebFetch(domain:api.madlen.app)"
+      "WebFetch(domain:api.madlen.app)",
+      "Bash(find c:UsersrderiDocumentsPRODEVMADLENGITMadlen-API-v2appapi -name *page* -type f)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(grep -E \"\\(NEXT_PUBLIC_|MADLEN_API\\)\" /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/.env*)",
+      "Bash(npx prisma:*)",
+      "Bash(grep -r dangerouslySetInnerHTML /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/app /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/components --include=*.tsx --include=*.ts)",
+      "Bash(npm audit:*)",
+      "Bash(grep -r NEXT_PUBLIC /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/.env /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/app /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/lib --include=*.ts --include=*.tsx)",
+      "Bash(grep -r \"innerHTML\\\\|innerHTML\\\\|eval\\\\|exec\\\\|Function\\(\" /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/app /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/components --include=*.tsx --include=*.ts)",
+      "Bash(npm ls:*)",
+      "Bash(xargs grep:*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //PID 31944 //F)"
     ]
   }
 }

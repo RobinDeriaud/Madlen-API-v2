@@ -6,7 +6,7 @@ import crypto from "crypto"
 import { z } from "zod"
 
 const schema = z.object({
-  newEmail: z.string().email(),
+  newEmail: z.string().email().trim().toLowerCase(),
   password: z.string().min(1),
 })
 

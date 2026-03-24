@@ -3,6 +3,13 @@ import { prisma } from "@/lib/prisma"
 import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripSensitive(user: any) {
+  if (!user) return user
+  const { passwordHash, passwordResetToken, passwordResetExpiry, emailConfirmToken, emailConfirmExpiry, emailChangeToken, emailChangeNewEmail, emailChangeExpiry, ...safe } = user
+  return safe
+}
+
 const updateSchema = z.object({
   email: z.string().email().optional(),
   nom: z.string().nullable().optional(),
@@ -61,7 +68,7 @@ export async function GET(
       },
     })
     if (!user) return Response.json({ error: "Not found" }, { status: 404 })
-    return Response.json(user)
+    return Response.json(stripSensitive(user))
   } catch {
     return Response.json({ error: "Internal server error" }, { status: 500 })
   }
@@ -157,7 +164,7 @@ export async function PUT(
       where: { id },
       include: { profil_patient: true, profil_praticien: true },
     })
-    return Response.json(updated)
+    return Response.json(stripSensitive(updated))
   } catch (err) {
     if (err instanceof Error && "code" in err && err.code === "P2002") {
       return Response.json({ error: "Email ou username déjà utilisé" }, { status: 409 })

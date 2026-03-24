@@ -4,9 +4,10 @@ import bcrypt from "bcryptjs"
 import { z } from "zod"
 
 const loginSchema = z.object({
-  identifier: z.string().email("Email invalide"),
+  identifier: z.string().email("Email invalide").trim().toLowerCase(),
   password: z.string().min(1),
 })
+
 
 export async function POST(req: Request) {
   const body = await req.json()
