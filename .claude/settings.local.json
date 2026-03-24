@@ -36,7 +36,8 @@
       "Bash(find /c/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-API-v2 -type f \\\\\\(-name .yml -o -name .yaml -o -name Makefile -o -name *.config.ts -o -name *.config.js \\\\\\) ! -path */node_modules/*)",
       "Bash(mv .env.local .env)",
       "Bash(rm .env.production)",
-      "Bash(find c:UsersrderiDocumentsPRODEVMADLENGITMadlen-API-v2appapipublic -type f -name *.ts)"
+      "Bash(find c:UsersrderiDocumentsPRODEVMADLENGITMadlen-API-v2appapipublic -type f -name *.ts)",
+      "WebFetch(domain:api.madlen.app)"
     ]
   }
 }
