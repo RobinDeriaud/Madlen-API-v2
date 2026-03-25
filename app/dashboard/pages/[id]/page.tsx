@@ -19,11 +19,6 @@ type PageData = {
   updatedAt: string
 }
 
-function toDateInput(iso: string | null): string {
-  if (!iso) return ""
-  return iso.slice(0, 10)
-}
-
 function Field({ label, error, children }: { label: string; error?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
@@ -61,7 +56,6 @@ export default function PageEditPage() {
   const [nom, setNom] = useState("")
   const [slug, setSlug] = useState("")
   const [contenu, setContenu] = useState("")
-  const [dateModified, setDateModified] = useState("")
 
   useEffect(() => {
     fetch(`/api/pages/${id}`)
@@ -74,7 +68,6 @@ export default function PageEditPage() {
         setNom(data.nom ?? "")
         setSlug(data.slug ?? "")
         setContenu(data.contenu ?? "")
-        setDateModified(toDateInput(data.date_modified))
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
@@ -108,7 +101,6 @@ export default function PageEditPage() {
         nom: nom || null,
         slug: slug || null,
         contenu: contenu || null,
-        date_modified: dateModified || null,
       }),
     })
 
@@ -195,15 +187,6 @@ export default function PageEditPage() {
             <span className="text-xs text-gray-400">a-z, 0-9, tirets</span>
           </Field>
         </div>
-
-        <Field label="Date de modification">
-          <input
-            type="date"
-            className={inputCls}
-            value={dateModified}
-            onChange={(e) => { setDateModified(e.target.value); setSaved(false) }}
-          />
-        </Field>
 
         <SectionTitle>Contenu</SectionTitle>
 

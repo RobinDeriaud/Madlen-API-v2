@@ -186,13 +186,23 @@ export const swaggerSpec = {
       AudioFile: {
         type: "object",
         properties: {
+          id: { type: "integer" },
           name: { type: "string" },
           url: { type: "string" },
           mime: { type: "string", nullable: true },
-          size: { type: "number", nullable: true },
+          size: { type: "integer", nullable: true },
           ext: { type: "string", nullable: true },
-          exerciceNumero: { type: "integer", nullable: true },
-          uploadDate: { type: "string", format: "date-time" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+          exercice: {
+            nullable: true,
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              numero: { type: "integer", nullable: true },
+              nom: { type: "string", nullable: true },
+            },
+          },
         },
       },
       ListeElement: {
@@ -277,9 +287,11 @@ export const swaggerSpec = {
         type: "object",
         properties: {
           id: { type: "integer" },
+          nom: { type: "string", nullable: true },
           slug: { type: "string", nullable: true },
-          titre: { type: "string", nullable: true },
           contenu: { type: "string", nullable: true },
+          date_modified: { type: "string", format: "date", nullable: true },
+          publishedAt: { type: "string", format: "date-time", nullable: true },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },
@@ -854,6 +866,164 @@ export const swaggerSpec = {
           "400": { $ref: "#/components/responses/BadRequest" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "409": { description: "Email déjà utilisé" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/exercices-img/{numero}": {
+      get: {
+        summary: "Image d'un exercice",
+        description: "Retourne l'image PNG de l'exercice (depuis le dossier Madlen-Site). Route admin protégée par session.",
+        tags: ["Exercices"],
+        parameters: [
+          { name: "numero", in: "path", required: true, schema: { type: "integer" }, description: "Numéro de l'exercice" },
+        ],
+        responses: {
+          "200": {
+            description: "Image PNG",
+            content: { "image/png": { schema: { type: "string", format: "binary" } } },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+    "/pages": {
+      get: {
+        summary: "Liste des pages statiques (admin)",
+        description: "Retourne toutes les pages avec id, nom, slug, publishedAt, updatedAt. Triées par date de mise à jour décroissante.",
+        tags: ["Admin — Pages"],
+        responses: {
+          "200": {
+            description: "Liste des pages",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "integer" },
+                      nom: { type: "string", nullable: true },
+                      slug: { type: "string", nullable: true },
+                      publishedAt: { type: "string", format: "date-time", nullable: true },
+                      updatedAt: { type: "string", format: "date-time" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      post: {
+        summary: "Créer une page statique",
+        tags: ["Admin — Pages"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["nom", "slug"],
+                properties: {
+                  nom: { type: "string", minLength: 1 },
+                  slug: { type: "string", minLength: 1, pattern: "^[a-z0-9-]+$", description: "Slug URL (a-z, 0-9, tirets)" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Page créée",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/PageStatique" } } },
+          },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "409": { description: "Slug déjà utilisé", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/pages/{id}": {
+      get: {
+        summary: "Obtenir une page statique",
+        tags: ["Admin — Pages"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: {
+          "200": { description: "Page statique", content: { "application/json": { schema: { $ref: "#/components/schemas/PageStatique" } } } },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      put: {
+        summary: "Modifier une page statique",
+        tags: ["Admin — Pages"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  nom: { type: "string", nullable: true },
+                  slug: { type: "string", nullable: true, pattern: "^[a-z0-9-]+$" },
+                  contenu: { type: "string", nullable: true },
+                  date_modified: { type: "string", format: "date", nullable: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Page mise à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/PageStatique" } } } },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "409": { description: "Slug déjà utilisé", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      patch: {
+        summary: "Publier / dépublier une page",
+        description: "Met à jour publishedAt : date actuelle si published=true, null si false.",
+        tags: ["Admin — Pages"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["published"],
+                properties: {
+                  published: { type: "boolean" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Page mise à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/PageStatique" } } } },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      delete: {
+        summary: "Supprimer une page statique",
+        tags: ["Admin — Pages"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: {
+          "200": { description: "Supprimée", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" } } } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
           "500": { $ref: "#/components/responses/InternalError" },
         },
       },
@@ -1836,8 +2006,8 @@ export const swaggerSpec = {
 
     "/public/pages": {
       get: {
-        summary: "Pages statiques",
-        description: "Retourne toutes les pages ou une seule par slug. Route publique sans authentification.",
+        summary: "Pages statiques publiées",
+        description: "Retourne les pages publiées (publishedAt non null) ou une seule par slug. Route publique sans authentification.",
         tags: ["Public — Pages"],
         parameters: [
           { name: "slug", in: "query", schema: { type: "string" }, description: "Slug de la page (optionnel)" },
@@ -1863,6 +2033,265 @@ export const swaggerSpec = {
           },
           "404": { description: "Page introuvable", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+
+    // ─── Audio Files (Admin) ─────────────────────────────────
+    "/audio-files": {
+      get: {
+        summary: "Liste des fichiers audio",
+        description: "Retourne tous les fichiers audio avec l'exercice associé. Requiert une session admin.",
+        tags: ["Admin — Audio"],
+        responses: {
+          "200": {
+            description: "Liste de fichiers audio",
+            content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/AudioFile" } } } },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      post: {
+        summary: "Importer des fichiers audio",
+        description: "Upload un ou plusieurs fichiers audio (multipart/form-data). Requiert `exerciceId` et au moins un fichier dans `files`. Max 20 Mo par fichier.",
+        tags: ["Admin — Audio"],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["exerciceId", "files"],
+                properties: {
+                  exerciceId: { type: "integer", description: "ID de l'exercice cible" },
+                  files: { type: "array", items: { type: "string", format: "binary" }, description: "Fichiers audio (audio/mpeg, audio/wav, etc.)" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Fichiers créés",
+            content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/AudioFile" } } } },
+          },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/audio-files/{id}": {
+      get: {
+        summary: "Détail d'un fichier audio",
+        tags: ["Admin — Audio"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: {
+          "200": { description: "Fichier audio", content: { "application/json": { schema: { $ref: "#/components/schemas/AudioFile" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      put: {
+        summary: "Renommer / réassigner un fichier audio",
+        tags: ["Admin — Audio"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  name: { type: "string", minLength: 1, maxLength: 255 },
+                  exerciceId: { type: "integer" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Fichier mis à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/AudioFile" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      delete: {
+        summary: "Supprimer un fichier audio",
+        description: "Supprime le fichier du disque et le record en base.",
+        tags: ["Admin — Audio"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: {
+          "200": { description: "Supprimé", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" } } } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/audio-files/{id}/replace": {
+      post: {
+        summary: "Remplacer le fichier audio (ré-import)",
+        description: "Remplace le fichier sur disque en conservant l'ID et l'URL. Met à jour mime, size, ext.",
+        tags: ["Admin — Audio"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["file"],
+                properties: {
+                  file: { type: "string", format: "binary", description: "Nouveau fichier audio" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Fichier remplacé", content: { "application/json": { schema: { $ref: "#/components/schemas/AudioFile" } } } },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/public/checkout": {
+      post: {
+        summary: "Créer une session de paiement Stripe",
+        description: "Crée une Checkout Session Stripe pour un paiement ponctuel. Retourne l'URL de redirection vers le formulaire de paiement Stripe.",
+        tags: ["Public — Paiement"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["successUrl", "cancelUrl"],
+                properties: {
+                  priceId: { type: "string", description: "ID du prix Stripe (optionnel, utilise STRIPE_PRICE_ID par défaut)" },
+                  successUrl: { type: "string", format: "uri", description: "URL de redirection après paiement réussi" },
+                  cancelUrl: { type: "string", format: "uri", description: "URL de redirection si l'utilisateur annule" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Session créée",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    checkoutUrl: { type: "string", format: "uri", description: "URL Stripe Checkout vers laquelle rediriger l'utilisateur" },
+                  },
+                },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/BadRequest" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/public/stripe/products": {
+      get: {
+        summary: "Lister les produits Stripe disponibles",
+        description: "Retourne les produits Stripe filtrés par le type de l'utilisateur connecté (patient ou praticien). Chaque produit inclut son prix par défaut.",
+        tags: ["Public — Stripe"],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Liste des produits",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string" },
+                          name: { type: "string" },
+                          description: { type: "string", nullable: true },
+                          priceId: { type: "string" },
+                          amount: { type: "integer", description: "Montant en centimes" },
+                          currency: { type: "string" },
+                          licenseDays: { type: "integer" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/public/stripe/license": {
+      get: {
+        summary: "Vérifier l'état de la licence utilisateur",
+        description: "Interroge Stripe pour déterminer si l'utilisateur a une licence active. Retourne les détails de la licence (produit, dates, jours restants) ou null.",
+        tags: ["Public — Stripe"],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "État de la licence",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    hasLicense: { type: "boolean" },
+                    license: {
+                      nullable: true,
+                      type: "object",
+                      properties: {
+                        productId: { type: "string" },
+                        productName: { type: "string" },
+                        purchasedAt: { type: "string", format: "date-time" },
+                        expiresAt: { type: "string", format: "date-time" },
+                        daysRemaining: { type: "integer" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/audio-files/{id}/stream": {
+      get: {
+        summary: "Streaming du fichier audio",
+        description: "Sert le fichier audio binaire. Requiert une session admin.",
+        tags: ["Admin — Audio"],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: {
+          "200": {
+            description: "Fichier audio binaire",
+            content: { "audio/*": { schema: { type: "string", format: "binary" } } },
+          },
+          "401": { description: "Non authentifié" },
+          "404": { description: "Fichier introuvable" },
         },
       },
     },

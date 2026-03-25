@@ -220,3 +220,79 @@ export async function sendConfirmationEmail(to: string, confirmUrl: string): Pro
     text,
   })
 }
+
+export async function sendPaymentConfirmationEmail(
+  to: string,
+  prenom: string,
+  productName: string,
+  hasKit: boolean
+): Promise<void> {
+  const licenseUrl = `${process.env.APP_URL ?? "https://madlen.app"}/ma-licence`
+  const kitSection = hasKit
+    ? `<div style="background-color: #F6F9FC; border-radius: 8px; padding: 16px; margin: 0 0 16px 0;">
+        <p style="color: #425466; font-size: 14px; line-height: 1.5; margin: 0;">
+          <strong>Kit de démarrage inclus</strong><br>
+          Nous allons prendre contact avec vous prochainement pour vous proposer des créneaux d'installation du logiciel.
+        </p>
+      </div>`
+    : ""
+
+  let html = renderTemplate("payment-confirmation.html", {
+    PRENOM: prenom,
+    PRODUCT_NAME: productName,
+    LICENSE_URL: licenseUrl,
+  })
+  html = html.replaceAll("{{KIT_SECTION}}", kitSection)
+
+  const kitText = hasKit
+    ? "\n\nKit de démarrage inclus : nous allons prendre contact avec vous prochainement pour vous proposer des créneaux d'installation du logiciel."
+    : ""
+  const text = `Paiement confirmé\n\nBonjour ${prenom},\n\nVotre paiement pour ${productName} a bien été pris en compte. Merci pour votre confiance !${kitText}\n\nVoir ma licence : ${licenseUrl}\n\n© 2025 MADLEN - AMS-Logophonie`
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM ?? "Madlen <ne-pas-repondre@madlen.app>",
+    to,
+    subject: "Paiement confirmé - MADLEN",
+    html,
+    text,
+  })
+}
+
+export async function sendAdminNewPurchaseEmail(
+  to: string,
+  clientEmail: string,
+  clientNom: string,
+  productName: string,
+  amount: string,
+  hasKit: boolean,
+  adminUrl: string
+): Promise<void> {
+  const kitSection = hasKit
+    ? `<div style="background-color: #FFF3CD; border-radius: 8px; padding: 16px; margin: 0 0 16px 0;">
+        <p style="color: #856404; font-size: 14px; line-height: 1.5; margin: 0;">
+          <strong>Kit de démarrage acheté</strong><br>
+          Ce client a besoin d'un rendez-vous pour l'installation du logiciel.
+        </p>
+      </div>`
+    : ""
+
+  let html = renderTemplate("admin-new-purchase.html", {
+    CLIENT_NOM: clientNom,
+    CLIENT_EMAIL: clientEmail,
+    PRODUCT_NAME: productName,
+    AMOUNT: amount,
+    ADMIN_URL: adminUrl,
+  })
+  html = html.replaceAll("{{KIT_SECTION}}", kitSection)
+
+  const kitText = hasKit ? "\n\nKit de démarrage acheté — prenez rendez-vous avec ce client pour l'installation." : ""
+  const text = `Nouvel achat MADLEN\n\nClient : ${clientNom} (${clientEmail})\nProduit : ${productName}\nMontant : ${amount}${kitText}\n\nAccéder au panel admin : ${adminUrl}\n\n© 2025 MADLEN - AMS-Logophonie`
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM ?? "Madlen <ne-pas-repondre@madlen.app>",
+    to,
+    subject: `Nouvel achat : ${productName} - MADLEN`,
+    html,
+    text,
+  })
+}

@@ -15,8 +15,9 @@ model AdminUser {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   passwordHash String   @map("password_hash")
-  role         String   @default("admin")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  role          String   @default("admin")
+  notifications Boolean  @default(false) @map("notifications")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@map("admin_users")
 }
@@ -134,9 +135,11 @@ model User {
   emailChangeNewEmail    String?   @map("email_change_new_email")
   user_type              UserType  @default(NONE) @map("user_type")
 
-  profil_patient   Patient?
-  profil_praticien Praticien?
+  kitInstalled       Boolean   @default(false) @map("kit_installed")
+  kitPurchasedAt     DateTime? @map("kit_purchased_at") @db.Timestamptz
 
+  profil_patient    Patient?
+  profil_praticien  Praticien?
   @@map("users")
 }
 
@@ -340,3 +343,4 @@ model AudioFile {
 
   @@map("audio_files")
 }
+

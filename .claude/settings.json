@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -rn \"stripe\\\\|Stripe\\\\|STRIPE\" c:/Users/rderi/Documents/PRO/DEV/MADLEN/GIT/Madlen-Site/ --include=*.ts --include=*.tsx -l)"
+    ]
+  }
+}

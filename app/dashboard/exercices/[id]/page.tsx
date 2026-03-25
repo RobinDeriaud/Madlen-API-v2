@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useFieldErrors } from "@/lib/hooks/useFieldErrors"
 
 // ─── Enum options ────────────────────────────────────────────────────────────
@@ -138,6 +138,30 @@ const REPONSE_OPTIONS: { value: ReponseElementValue; label: string }[] = [
   { value: "NON", label: "Non" },
 ]
 
+// ─── AudioFile type ─────────────────────────────────────────────────────────
+
+type AudioFileData = {
+  id: number
+  name: string
+  url: string
+  mime: string | null
+  size: number | null
+  ext: string | null
+}
+
+/** Extract iteration number from filename like "exercice-101-3" → 3 */
+function audioIteration(name: string): number | null {
+  const match = name.match(/^exercice-\d+-(\d+)$/i)
+  return match ? parseInt(match[1]) : null
+}
+
+function formatFileSize(bytes: number | null): string {
+  if (!bytes) return ""
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function Field({ label, error, children }: { label: string; error?: boolean; children: React.ReactNode }) {
@@ -234,6 +258,14 @@ export default function ExerciceEditPage() {
   // Liste elements state
   const [listeItems, setListeItems] = useState<ListeElementLocal[]>([])
 
+  // Audio files state
+  const [audioFiles, setAudioFiles] = useState<AudioFileData[]>([])
+  const [playingAudioId, setPlayingAudioId] = useState<number | null>(null)
+  const [uploadingAudio, setUploadingAudio] = useState(false)
+  const audioUploadRef = useRef<HTMLInputElement>(null)
+  const itemAudioRef = useRef<HTMLInputElement>(null)
+  const [itemAudioIndex, setItemAudioIndex] = useState<number | null>(null)
+
   // Load exercice data
   useEffect(() => {
     fetch(`/api/exercices/${id}`)
@@ -241,8 +273,9 @@ export default function ExerciceEditPage() {
         if (!r.ok) throw new Error("Introuvable")
         return r.json()
       })
-      .then((data: ExerciceData) => {
+      .then((data: ExerciceData & { audioFiles?: AudioFileData[] }) => {
         setPublished(data.publishedAt !== null)
+        if (data.audioFiles) setAudioFiles(data.audioFiles)
         setF({
           numero: data.numero != null ? String(data.numero) : "",
           nom: data.nom ?? "",
@@ -437,6 +470,59 @@ export default function ExerciceEditPage() {
     setTogglingPublish(false)
   }
 
+  // ─── Audio helpers ───────────────────────────────────────────────────────
+
+  const refetchAudio = useCallback(() => {
+    fetch(`/api/exercices/${id}`)
+      .then((r) => r.json())
+      .then((data: { audioFiles?: AudioFileData[] }) => {
+        if (data.audioFiles) setAudioFiles(data.audioFiles)
+      })
+  }, [id])
+
+  async function handleAudioUpload(files: FileList | null, itemPosition?: number) {
+    if (!files || files.length === 0) return
+    setUploadingAudio(true)
+
+    const formData = new FormData()
+    formData.append("exerciceId", id)
+
+    for (const file of Array.from(files)) {
+      // If uploading for a specific list item, rename to convention
+      if (itemPosition != null && f.numero) {
+        const ext = file.name.substring(file.name.lastIndexOf(".")) || ".mp3"
+        const newName = `exercice-${f.numero}-${itemPosition}${ext}`
+        formData.append("files", new File([file], newName, { type: file.type }))
+      } else {
+        formData.append("files", file)
+      }
+    }
+
+    try {
+      await fetch("/api/audio-files", { method: "POST", body: formData })
+      refetchAudio()
+    } finally {
+      setUploadingAudio(false)
+      if (audioUploadRef.current) audioUploadRef.current.value = ""
+      if (itemAudioRef.current) itemAudioRef.current.value = ""
+      setItemAudioIndex(null)
+    }
+  }
+
+  async function handleAudioDelete(audioId: number) {
+    if (!window.confirm("Supprimer ce fichier audio ?")) return
+    await fetch(`/api/audio-files/${audioId}`, { method: "DELETE" })
+    if (playingAudioId === audioId) setPlayingAudioId(null)
+    refetchAudio()
+  }
+
+  /** Map iteration number → audioFile for quick lookup in list items */
+  const audioByIteration = new Map<number, AudioFileData>()
+  for (const af of audioFiles) {
+    const iter = audioIteration(af.name)
+    if (iter !== null) audioByIteration.set(iter, af)
+  }
+
   if (loading) return <p className="text-gray-500">Chargement...</p>
   if (error) return <p className="text-red-500">{error}</p>
 
@@ -513,49 +599,79 @@ export default function ExerciceEditPage() {
             )}
 
             <div className="flex flex-col gap-2">
-              {listeItems.map((item, i) => (
-                <div key={item._key} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-5 text-right shrink-0">{i + 1}</span>
-                  <input
-                    type="text"
-                    className={`${inputCls} flex-1 min-w-0`}
-                    value={item.element}
-                    onChange={(e) => updateItem(item._key, "element", e.target.value)}
-                    placeholder="Texte de l'element"
-                  />
-                  <select
-                    className={`${inputCls} w-20 shrink-0`}
-                    value={item.reponse}
-                    onChange={(e) => updateItem(item._key, "reponse", e.target.value)}
-                  >
-                    {REPONSE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                  <div className="flex flex-col gap-0.5 shrink-0">
+              {listeItems.map((item, i) => {
+                const itemAudio = audioByIteration.get(i + 1)
+                return (
+                  <div key={item._key} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 w-5 text-right shrink-0">{i + 1}</span>
+                    <input
+                      type="text"
+                      className={`${inputCls} flex-1 min-w-0`}
+                      value={item.element}
+                      onChange={(e) => updateItem(item._key, "element", e.target.value)}
+                      placeholder="Texte de l'element"
+                    />
+                    <select
+                      className={`${inputCls} w-20 shrink-0`}
+                      value={item.reponse}
+                      onChange={(e) => updateItem(item._key, "reponse", e.target.value)}
+                    >
+                      {REPONSE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                    {/* Audio indicator per list item */}
+                    {itemAudio ? (
+                      <button
+                        type="button"
+                        onClick={() => setPlayingAudioId(playingAudioId === itemAudio.id ? null : itemAudio.id)}
+                        className={`shrink-0 w-7 h-7 rounded-full text-xs flex items-center justify-center transition-colors ${
+                          playingAudioId === itemAudio.id
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600"
+                        }`}
+                        title={`${itemAudio.name}${itemAudio.ext ?? ""}`}
+                      >
+                        {playingAudioId === itemAudio.id ? "⏸" : "▶"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItemAudioIndex(i + 1)
+                          setTimeout(() => itemAudioRef.current?.click(), 0)
+                        }}
+                        className="shrink-0 w-7 h-7 rounded-full text-xs flex items-center justify-center bg-gray-50 text-gray-300 hover:bg-gray-100 hover:text-gray-500 border border-dashed border-gray-200 transition-colors"
+                        title="Importer un audio pour cet item"
+                      >
+                        +
+                      </button>
+                    )}
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => moveUp(i)}
+                        disabled={i === 0}
+                        className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
+                        title="Monter"
+                      >&#9650;</button>
+                      <button
+                        type="button"
+                        onClick={() => moveDown(i)}
+                        disabled={i === listeItems.length - 1}
+                        className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
+                        title="Descendre"
+                      >&#9660;</button>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => moveUp(i)}
-                      disabled={i === 0}
-                      className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
-                      title="Monter"
-                    >&#9650;</button>
-                    <button
-                      type="button"
-                      onClick={() => moveDown(i)}
-                      disabled={i === listeItems.length - 1}
-                      className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none"
-                      title="Descendre"
-                    >&#9660;</button>
+                      onClick={() => removeItem(item._key)}
+                      className="text-gray-400 hover:text-red-500 text-lg leading-none shrink-0"
+                      title="Supprimer"
+                    >&#215;</button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item._key)}
-                    className="text-gray-400 hover:text-red-500 text-lg leading-none shrink-0"
-                    title="Supprimer"
-                  >&#215;</button>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             <button
@@ -566,6 +682,86 @@ export default function ExerciceEditPage() {
               + Ajouter un element
             </button>
           </>
+        )}
+
+        {/* ── Fichiers audio ── */}
+        <SectionTitle>Fichiers audio</SectionTitle>
+
+        {/* Hidden file inputs */}
+        <input
+          ref={audioUploadRef}
+          type="file"
+          accept=".mp3,.wav,.ogg,.webm,.aac,.m4a,.flac"
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          onChange={(e) => { handleAudioUpload(e.target.files); e.target.value = "" }}
+        />
+        <input
+          ref={itemAudioRef}
+          type="file"
+          accept=".mp3,.wav,.ogg,.webm,.aac,.m4a,.flac"
+          className="sr-only"
+          tabIndex={-1}
+          onChange={(e) => { handleAudioUpload(e.target.files, itemAudioIndex ?? undefined); e.target.value = "" }}
+        />
+
+        {audioFiles.length === 0 && !uploadingAudio && (
+          <p className="text-gray-400 text-sm">Aucun fichier audio associé.</p>
+        )}
+
+        {audioFiles.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {audioFiles.map((af) => {
+              const iter = audioIteration(af.name)
+              return (
+                <div key={af.id} className="flex items-center gap-2 text-sm bg-gray-50 rounded px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setPlayingAudioId(playingAudioId === af.id ? null : af.id)}
+                    className="text-gray-400 hover:text-gray-700 shrink-0"
+                  >
+                    {playingAudioId === af.id ? "⏸" : "▶"}
+                  </button>
+                  <span className="text-gray-800 truncate flex-1" title={`${af.name}${af.ext ?? ""}`}>
+                    {af.name}<span className="text-gray-400">{af.ext}</span>
+                  </span>
+                  {iter !== null && (
+                    <span className="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">
+                      item {iter}
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-400 shrink-0">{formatFileSize(af.size)}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleAudioDelete(af.id)}
+                    className="text-gray-400 hover:text-red-500 shrink-0"
+                    title="Supprimer"
+                  >&#215;</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => audioUploadRef.current?.click()}
+          disabled={uploadingAudio}
+          className="self-start text-sm text-gray-500 hover:text-gray-800 border border-dashed border-gray-300 rounded px-3 py-1.5 hover:border-gray-500 disabled:opacity-50"
+        >
+          {uploadingAudio ? "Import…" : "+ Importer des audios"}
+        </button>
+
+        {/* Audio player element */}
+        {playingAudioId && (
+          <audio
+            src={`/api/audio-files/${playingAudioId}/stream`}
+            autoPlay
+            onEnded={() => setPlayingAudioId(null)}
+            onError={() => setPlayingAudioId(null)}
+            className="hidden"
+          />
         )}
 
         {/* ── Classification ── */}

@@ -49,7 +49,8 @@
       "Bash(npm ls:*)",
       "Bash(xargs grep:*)",
       "Bash(netstat -ano)",
-      "Bash(taskkill //PID 31944 //F)"
+      "Bash(taskkill //PID 31944 //F)",
+      "Bash(grep -r \"CookieBanner\\\\|CookieConsentProvider\" c:UsersrderiDocumentsPRODEVMADLENGITMadlen-Site --include=*.tsx --include=*.ts --exclude-dir=node_modules --exclude-dir=.next)"
     ]
   }
 }

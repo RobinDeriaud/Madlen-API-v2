@@ -38,7 +38,10 @@ export async function GET(
   if (isNaN(id)) return Response.json({ error: "Invalid id" }, { status: 400 })
 
   try {
-    const exercice = await prisma.exercice.findUnique({ where: { id } })
+    const exercice = await prisma.exercice.findUnique({
+      where: { id },
+      include: { audioFiles: { orderBy: { name: "asc" } } },
+    })
     if (!exercice) return Response.json({ error: "Not found" }, { status: 404 })
     return Response.json(exercice)
   } catch {
