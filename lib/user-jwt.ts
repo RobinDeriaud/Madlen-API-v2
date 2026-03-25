@@ -157,5 +157,7 @@ export function normalizeUser(user: UserWithProfiles) {
     profile_completed: user.user_type !== "NONE",
     profil_patient: user.profil_patient ? normalizePatient(user.profil_patient) : null,
     profil_praticien: user.profil_praticien ?? null,
+    kit_installed: user.kitInstalled,
+    kit_purchased_at: user.kitPurchasedAt?.toISOString() ?? null,
   }
 }
