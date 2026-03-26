@@ -143,8 +143,10 @@ export async function POST() {
 
     // Collecter tous les userIds à mettre à jour
     const allUserIds = new Set([...bestLicence.keys(), ...bestKit.keys()])
-    let syncedLicences = 0
-    let syncedKits = 0
+    let activeLicences = 0
+    let inactiveLicences = 0
+    let activeKits = 0
+    let refundedKits = 0
 
     for (const userId of allUserIds) {
       const licence = bestLicence.get(userId)
@@ -158,7 +160,8 @@ export async function POST() {
         data.licenceProductName = licence.productName
         data.licencePurchasedAt = licence.purchasedAt
         data.licenceExpiresAt = licence.expiresAt
-        syncedLicences++
+        if (licence.active) activeLicences++
+        else inactiveLicences++
       }
 
       if (kit) {
@@ -166,8 +169,10 @@ export async function POST() {
         // Reset kitInstalled si le kit a été remboursé
         if (kit.purchasedAt === null) {
           data.kitInstalled = false
+          refundedKits++
+        } else {
+          activeKits++
         }
-        syncedKits++
       }
 
       try {
@@ -183,7 +188,10 @@ export async function POST() {
 
     return Response.json({
       synced: allUserIds.size,
-      details: { licences: syncedLicences, kits: syncedKits },
+      details: {
+        licences: { active: activeLicences, inactive: inactiveLicences },
+        kits: { active: activeKits, refunded: refundedKits },
+      },
     })
   } catch (err) {
     console.error("[POST /api/kit-installations] Sync error:", err)

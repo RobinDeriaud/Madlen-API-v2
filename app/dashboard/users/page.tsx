@@ -107,9 +107,21 @@ export default function UsersPage() {
       if (res.ok) {
         if (data.synced > 0) {
           const parts: string[] = []
-          if (data.details?.licences) parts.push(`${data.details.licences} licence${data.details.licences > 1 ? "s" : ""}`)
-          if (data.details?.kits) parts.push(`${data.details.kits} kit${data.details.kits > 1 ? "s" : ""}`)
-          setSyncResult(`${data.synced} user${data.synced > 1 ? "s" : ""} synchronisé${data.synced > 1 ? "s" : ""} (${parts.join(", ")})`)
+          const l = data.details?.licences
+          if (l) {
+            const lParts: string[] = []
+            if (l.active) lParts.push(`${l.active} active${l.active > 1 ? "s" : ""}`)
+            if (l.inactive) lParts.push(`${l.inactive} inactive${l.inactive > 1 ? "s" : ""}`)
+            parts.push(`licences : ${lParts.join(", ")}`)
+          }
+          const k = data.details?.kits
+          if (k) {
+            const kParts: string[] = []
+            if (k.active) kParts.push(`${k.active} actif${k.active > 1 ? "s" : ""}`)
+            if (k.refunded) kParts.push(`${k.refunded} remboursé${k.refunded > 1 ? "s" : ""}`)
+            parts.push(`kits : ${kParts.join(", ")}`)
+          }
+          setSyncResult(`${data.synced} user${data.synced > 1 ? "s" : ""} synchronisé${data.synced > 1 ? "s" : ""} (${parts.join(" · ")})`)
           refetch()
         } else {
           setSyncResult("Tout est à jour")
