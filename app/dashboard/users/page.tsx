@@ -159,6 +159,8 @@ export default function UsersPage() {
       </div>
     )
 
+  const kitToInstallCount = users.filter((u) => u.kitPurchasedAt !== null && !u.kitInstalled).length
+
   const filtered = users
     .filter((u) => typeFilter === "ALL" || u.user_type === typeFilter)
     .filter((u) => !kitFilter || (u.kitPurchasedAt !== null && !u.kitInstalled))
@@ -217,13 +219,24 @@ export default function UsersPage() {
         <span className="border-l border-gray-200 mx-1" />
         <button
           onClick={() => setKitFilter(!kitFilter)}
-          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors inline-flex items-center gap-1.5 ${
             kitFilter
               ? "bg-amber-600 text-white border-amber-600"
               : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
           }`}
         >
           Kit à installer
+          {kitToInstallCount > 0 && (
+            <span
+              className={`inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] rounded-full text-[10px] font-bold leading-none px-1 ${
+                kitFilter
+                  ? "bg-white text-amber-600"
+                  : "bg-amber-500 text-white"
+              }`}
+            >
+              {kitToInstallCount}
+            </span>
+          )}
         </button>
       </div>
 
