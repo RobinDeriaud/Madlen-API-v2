@@ -3,31 +3,6 @@ import { prisma } from "@/lib/prisma"
 import { stripe } from "@/lib/stripe"
 import type Stripe from "stripe"
 
-/** GET — Liste des utilisateurs ayant acheté un kit (lecture Prisma, instantané) */
-export async function GET() {
-  const { error } = await requireAdmin()
-  if (error) return error
-
-  try {
-    const users = await prisma.user.findMany({
-      where: { kitPurchasedAt: { not: null } },
-      select: {
-        id: true,
-        email: true,
-        nom: true,
-        prenom: true,
-        kitInstalled: true,
-        kitPurchasedAt: true,
-      },
-      orderBy: { kitPurchasedAt: "desc" },
-    })
-
-    return Response.json(users)
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 })
-  }
-}
-
 type LicenceState = {
   active: boolean
   productName: string | null

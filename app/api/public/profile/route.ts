@@ -10,7 +10,13 @@ const updateSchema = z.object({
   profil_patient: z
     .object({
       age: z.number().int().nullable().optional(),
-      sexe: z.enum(["FEMININ", "MASCULIN"]).nullable().optional(),
+      sexe: z
+          .enum(["FEMININ", "MASCULIN", "féminin", "masculin"])
+          .transform((v) =>
+            v === "féminin" ? "FEMININ" : v === "masculin" ? "MASCULIN" : v
+          )
+          .nullable()
+          .optional(),
     })
     .nullable()
     .optional(),

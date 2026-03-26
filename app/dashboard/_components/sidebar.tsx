@@ -21,11 +21,11 @@ export function Sidebar() {
     let cancelled = false
     async function fetchKitCount() {
       try {
-        const res = await fetch("/api/kit-installations")
+        const res = await fetch("/api/users")
         if (!res.ok) return
-        const users: { kitInstalled: boolean }[] = await res.json()
+        const users: { kitPurchasedAt: string | null; kitInstalled: boolean }[] = await res.json()
         if (!cancelled) {
-          setKitPendingCount(users.filter((u) => !u.kitInstalled).length)
+          setKitPendingCount(users.filter((u) => u.kitPurchasedAt !== null && !u.kitInstalled).length)
         }
       } catch {
         // silently ignore
