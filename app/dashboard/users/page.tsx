@@ -123,6 +123,7 @@ export default function UsersPage() {
           }
           setSyncResult(`${data.synced} user${data.synced > 1 ? "s" : ""} synchronisé${data.synced > 1 ? "s" : ""} (${parts.join(" · ")})`)
           refetch()
+          window.dispatchEvent(new CustomEvent("kit-data-changed"))
         } else {
           setSyncResult("Tout est à jour")
         }

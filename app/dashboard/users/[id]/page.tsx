@@ -1766,7 +1766,10 @@ function UserEditInner() {
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ kitInstalled: !kitInstalled }),
                     })
-                    if (res.ok) setKitInstalled(!kitInstalled)
+                    if (res.ok) {
+                      setKitInstalled(!kitInstalled)
+                      window.dispatchEvent(new CustomEvent("kit-data-changed"))
+                    }
                   } finally {
                     setKitToggling(false)
                   }

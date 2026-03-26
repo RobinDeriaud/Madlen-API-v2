@@ -32,10 +32,12 @@ export function Sidebar() {
       }
     }
     fetchKitCount()
-    // Refresh on window focus
+    // Refresh on window focus + when kit data changes in other components
     const onFocus = () => fetchKitCount()
+    const onKitChanged = () => fetchKitCount()
     window.addEventListener("focus", onFocus)
-    return () => { cancelled = true; window.removeEventListener("focus", onFocus) }
+    window.addEventListener("kit-data-changed", onKitChanged)
+    return () => { cancelled = true; window.removeEventListener("focus", onFocus); window.removeEventListener("kit-data-changed", onKitChanged) }
   }, [])
 
   return (
