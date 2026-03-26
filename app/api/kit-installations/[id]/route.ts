@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, parseId, parseBody, handlePrismaError } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { updateKitInstalledSchema, zodFieldError } from "@/lib/validate"
 
@@ -6,20 +6,14 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  // id = userId
-  const { id: rawId } = await params
-  const userId = parseInt(rawId)
-  if (isNaN(userId)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id: userId, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 })
-  }
+  const { body, error: bodyError } = await parseBody(req)
+  if (bodyError) return bodyError
 
   const parsed = updateKitInstalledSchema.safeParse(body)
   if (!parsed.success) return zodFieldError(parsed.error)
@@ -32,9 +26,6 @@ export async function PATCH(
     })
     return Response.json(updated)
   } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === "P2025") {
-      return Response.json({ error: "Not found" }, { status: 404 })
-    }
-    return Response.json({ error: "Internal server error" }, { status: 500 })
+    return handlePrismaError(err)
   }
 }

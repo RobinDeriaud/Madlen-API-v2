@@ -43,6 +43,13 @@ export async function POST(req: Request) {
         return Response.json({ received: true }, { status: 200 })
       }
 
+      // Vérifier que l'email Stripe correspond au user en DB
+      const stripeEmail = session.customer_details?.email
+      if (stripeEmail && stripeEmail !== user.email) {
+        console.warn(`[Stripe Webhook] Email mismatch: Stripe=${stripeEmail}, DB=${user.email} (userId=${userId})`)
+        return Response.json({ received: true }, { status: 200 })
+      }
+
       // Récupérer les line items pour identifier licence et kit
       const lineItems = await stripe.checkout.sessions.listLineItems(
         session.id,
@@ -51,24 +58,57 @@ export async function POST(req: Request) {
 
       let productName = "MADLEN"
       let hasKit = false
+      let licenseDays = 365
+      let hasLicense = false
 
       for (const item of lineItems.data) {
         const product = item.price?.product as Stripe.Product | undefined
         if (!product) continue
         if (product.metadata?.type === "license") {
           productName = product.name
+          licenseDays = parseInt(product.metadata?.license_days || "365")
+          hasLicense = true
         }
         if (product.metadata?.type === "kit") {
           hasKit = true
         }
       }
 
-      // Marquer l'achat du kit en DB
+      // Marquer l'achat du kit en DB (try-catch P2025 si user supprimé entre-temps)
       if (hasKit && !user.kitPurchasedAt) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { kitPurchasedAt: new Date(session.created * 1000) },
-        })
+        try {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { kitPurchasedAt: new Date(session.created * 1000) },
+          })
+        } catch (updateErr) {
+          if (updateErr instanceof Error && "code" in updateErr && updateErr.code === "P2025") {
+            console.warn(`[Stripe Webhook] User ${userId} was deleted before kit update`)
+            return Response.json({ received: true }, { status: 200 })
+          }
+          throw updateErr
+        }
+      }
+
+      // Activer la licence en DB
+      if (hasLicense) {
+        try {
+          await prisma.user.update({
+            where: { id: userId },
+            data: {
+              licenceActive: true,
+              licenceProductName: productName,
+              licencePurchasedAt: new Date(session.created * 1000),
+              licenceExpiresAt: new Date((session.created + licenseDays * 86400) * 1000),
+            },
+          })
+        } catch (updateErr) {
+          if (updateErr instanceof Error && "code" in updateErr && updateErr.code === "P2025") {
+            console.warn(`[Stripe Webhook] User ${userId} deleted before licence update`)
+            return Response.json({ received: true }, { status: 200 })
+          }
+          throw updateErr
+        }
       }
 
       const prenom = user.prenom ?? user.email
@@ -110,6 +150,33 @@ export async function POST(req: Request) {
     } catch (err) {
       console.error("[Stripe Webhook] Error processing event:", err)
       return Response.json({ error: "Internal error" }, { status: 500 })
+    }
+  }
+
+  if (event.type === "charge.refunded") {
+    const charge = event.data.object as Stripe.Charge
+    try {
+      // Récupérer la session checkout liée à ce paiement
+      const piId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id
+      if (piId) {
+        const sessions = await stripe.checkout.sessions.list({
+          payment_intent: piId,
+          limit: 1,
+        })
+        const session = sessions.data[0]
+        const userId = session?.metadata?.userId ? parseInt(session.metadata.userId) : null
+
+        if (userId && charge.refunded) {
+          // Réinitialiser licence et kit si remboursement total
+          await prisma.user.update({
+            where: { id: userId },
+            data: { licenceActive: false, kitPurchasedAt: null },
+          })
+          console.log(`[Stripe Webhook] Refund processed for user ${userId} — kitPurchasedAt reset`)
+        }
+      }
+    } catch (err) {
+      console.error("[Stripe Webhook] Error processing refund:", err)
     }
   }
 

@@ -1,5 +1,6 @@
+import { requireUser } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
-import { verifyUserJwt, verifySuiviConfirmJwt } from "@/lib/user-jwt"
+import { verifySuiviConfirmJwt } from "@/lib/user-jwt"
 import { sendPraticienNotificationEmail } from "@/lib/mailer"
 import { z } from "zod"
 
@@ -8,17 +9,10 @@ const schema = z.object({
 })
 
 export async function POST(req: Request) {
-  const authHeader = req.headers.get("authorization")
-  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null
-  if (!bearerToken) return Response.json({ error: "Token manquant" }, { status: 401 })
-
-  const userPayload = await verifyUserJwt(bearerToken)
-  if (!userPayload) return Response.json({ error: "Token invalide ou expiré" }, { status: 401 })
+  const { userId, error } = await requireUser(req)
+  if (error) return error
 
   try {
-    const userId = parseInt(userPayload.sub)
-    if (!userId || isNaN(userId)) return Response.json({ error: "Token invalide" }, { status: 401 })
-
     const body = await req.json()
     const parsed = schema.safeParse(body)
     if (!parsed.success) return Response.json({ error: "Token de confirmation requis" }, { status: 400 })

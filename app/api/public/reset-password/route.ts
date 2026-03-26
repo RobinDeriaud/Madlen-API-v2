@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { BCRYPT_ROUNDS } from "@/lib/validate"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Ce lien a expiré, veuillez en demander un nouveau" }, { status: 410 })
     }
 
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
     await prisma.user.update({
       where: { id: user.id },
       data: {

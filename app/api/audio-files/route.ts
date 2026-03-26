@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import path from "path"
@@ -11,8 +11,8 @@ import {
 } from "@/lib/audio-storage"
 
 export async function GET() {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
   try {
     const files = await prisma.audioFile.findMany({
@@ -30,8 +30,8 @@ const metaSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error: authError } = await requireAdmin()
+  if (authError) return authError
 
   let formData: FormData
   try {

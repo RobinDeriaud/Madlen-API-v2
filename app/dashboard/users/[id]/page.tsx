@@ -66,6 +66,12 @@ type UserData = {
   prenom: string | null
   confirmed: boolean
   user_type: UserType
+  licenceActive: boolean
+  licenceProductName: string | null
+  licencePurchasedAt: string | null
+  licenceExpiresAt: string | null
+  kitInstalled: boolean
+  kitPurchasedAt: string | null
   profil_patient: {
     id: number
     age: number | null
@@ -1186,6 +1192,14 @@ function UserEditInner() {
   const [deleting, setDeleting] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
 
+  const [licenceActive, setLicenceActive] = useState(false)
+  const [licenceProductName, setLicenceProductName] = useState<string | null>(null)
+  const [licenceExpiresAt, setLicenceExpiresAt] = useState<string | null>(null)
+  const [licenceToggling, setLicenceToggling] = useState(false)
+  const [kitInstalled, setKitInstalled] = useState(false)
+  const [kitPurchasedAt, setKitPurchasedAt] = useState<string | null>(null)
+  const [kitToggling, setKitToggling] = useState(false)
+
   // Determine initial tab from searchParams
   const defaultTab = searchParams.get("tab") ?? "general"
   const [activeTab, setActiveTab] = useState(defaultTab)
@@ -1213,6 +1227,11 @@ function UserEditInner() {
           confirmed: data.confirmed,
           user_type: data.user_type,
         })
+        setLicenceActive(data.licenceActive)
+        setLicenceProductName(data.licenceProductName ?? null)
+        setLicenceExpiresAt(data.licenceExpiresAt ?? null)
+        setKitInstalled(data.kitInstalled)
+        setKitPurchasedAt(data.kitPurchasedAt ?? null)
         if (data.profil_patient) {
           setPat({
             age: data.profil_patient.age != null ? String(data.profil_patient.age) : "",
@@ -1515,7 +1534,10 @@ function UserEditInner() {
   const displayName = [f.prenom, f.nom].filter(Boolean).join(" ") || f.email || `Utilisateur #${id}`
 
   // Build tabs based on user type (uses current f.user_type)
-  const tabs = [{ key: "general", label: "Général" }]
+  const tabs = [
+    { key: "general", label: "Général" },
+    { key: "licence", label: "Licence" },
+  ]
   if (f.user_type === "PRATICIEN") tabs.push({ key: "patients", label: "Patients" })
   if (f.user_type === "PATIENT") tabs.push({ key: "suivi", label: "Suivi patient" })
 
@@ -1658,6 +1680,114 @@ function UserEditInner() {
             {saveError && <span className="text-red-500 text-sm">{saveError}</span>}
           </div>
         </form>
+      )}
+
+      {/* ── Onglet Licence ── */}
+      {validTab === "licence" && (
+        <div className="flex flex-col gap-6">
+          <SectionTitle>Abonnement</SectionTitle>
+          <div className={`px-4 py-3 rounded-lg border flex items-center justify-between ${
+            licenceActive
+              ? "bg-green-50 border-green-200"
+              : "bg-gray-50 border-gray-200"
+          }`}>
+            <div className="flex items-center gap-3">
+              <span className={`inline-block w-2.5 h-2.5 rounded-full ${licenceActive ? "bg-green-500" : "bg-gray-300"}`} />
+              <div>
+                <span className={`text-sm font-semibold ${licenceActive ? "text-green-800" : "text-gray-500"}`}>
+                  {licenceActive ? "Licence active" : "Pas de licence"}
+                </span>
+                {licenceActive && licenceProductName && (
+                  <span className="text-sm text-green-600 ml-2">— {licenceProductName}</span>
+                )}
+                {licenceActive && licenceExpiresAt && (
+                  <span className="text-xs text-green-500 ml-2">
+                    expire le {new Date(licenceExpiresAt).toLocaleDateString("fr-FR")}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={licenceToggling}
+              onClick={async () => {
+                setLicenceToggling(true)
+                try {
+                  const res = await fetch(`/api/users/${id}/licence`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ licenceActive: !licenceActive }),
+                  })
+                  if (res.ok) setLicenceActive(!licenceActive)
+                } finally {
+                  setLicenceToggling(false)
+                }
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+                licenceActive
+                  ? "text-red-600 border-red-200 hover:bg-red-50"
+                  : "text-green-700 border-green-300 hover:bg-green-100"
+              } ${licenceToggling ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              {licenceToggling
+                ? "…"
+                : licenceActive
+                  ? "Désactiver"
+                  : "Activer manuellement"}
+            </button>
+          </div>
+
+          <SectionTitle>Kit de démarrage</SectionTitle>
+          {kitPurchasedAt ? (
+            <div className={`px-4 py-3 rounded-lg border flex items-center justify-between ${
+              kitInstalled
+                ? "bg-green-50 border-green-200"
+                : "bg-amber-50 border-amber-200"
+            }`}>
+              <div className="flex items-center gap-3">
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${kitInstalled ? "bg-green-500" : "bg-amber-400"}`} />
+                <div>
+                  <span className={`text-sm font-semibold ${kitInstalled ? "text-green-800" : "text-amber-700"}`}>
+                    {kitInstalled ? "Installation effectuée" : "Installation à effectuer"}
+                  </span>
+                  <span className="text-xs text-gray-500 ml-2">
+                    Acheté le {new Date(kitPurchasedAt).toLocaleDateString("fr-FR")}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={kitToggling}
+                onClick={async () => {
+                  setKitToggling(true)
+                  try {
+                    const res = await fetch(`/api/kit-installations/${id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ kitInstalled: !kitInstalled }),
+                    })
+                    if (res.ok) setKitInstalled(!kitInstalled)
+                  } finally {
+                    setKitToggling(false)
+                  }
+                }}
+                className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+                  kitInstalled
+                    ? "bg-gray-200 text-gray-700 hover:bg-gray-300 border-gray-300"
+                    : "bg-green-600 text-white hover:bg-green-700 border-green-600"
+                } ${kitToggling ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                {kitToggling
+                  ? "…"
+                  : kitInstalled
+                    ? "Annuler"
+                    : "Marquer installé"}
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">Aucun kit acheté.</p>
+          )}
+        </div>
       )}
 
       {/* ── Onglet Patients (praticien) ── */}

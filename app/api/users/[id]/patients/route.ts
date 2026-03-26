@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, parseId } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { sendPraticienConfirmationEmail, sendPatientSetupEmail } from "@/lib/mailer"
 import { signPraticienConfirmJwt, signPatientSetupJwt } from "@/lib/user-jwt"
@@ -20,12 +20,11 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id: rawId } = await params
-  const userId = parseInt(rawId)
-  if (isNaN(userId)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id: userId, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   const body = await req.json()
   const parsed = z.object({ userPatientId: z.number().int() }).safeParse(body)
@@ -114,12 +113,11 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id: rawId } = await params
-  const userId = parseInt(rawId)
-  if (isNaN(userId)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id: userId, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   const body = await req.json()
   const parsed = z.object({ patientId: z.number().int() }).safeParse(body)

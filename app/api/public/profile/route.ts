@@ -1,5 +1,7 @@
+import { requireUser } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
-import { verifyUserJwt, normalizeUser } from "@/lib/user-jwt"
+import { normalizeUser } from "@/lib/user-jwt"
+import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
 
 const updateSchema = z.object({
@@ -21,33 +23,16 @@ const updateSchema = z.object({
 })
 
 export async function PUT(req: Request) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null
-
-  if (!token) {
-    return Response.json({ error: "Token manquant" }, { status: 401 })
-  }
-
-  const payload = await verifyUserJwt(token)
-  if (!payload) {
-    return Response.json({ error: "Token invalide ou expiré" }, { status: 401 })
-  }
+  const { userId, error } = await requireUser(req)
+  if (error) return error
 
   const body = await req.json()
   const parsed = updateSchema.safeParse(body)
-  if (!parsed.success) {
-    const first = parsed.error.errors[0]
-    return Response.json({ error: first ? first.message : "Données invalides" }, { status: 400 })
-  }
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   const { profil_patient, profil_praticien, ...userFields } = parsed.data
 
   try {
-    const userId = parseInt(payload.sub)
-    if (!userId || isNaN(userId)) {
-      return Response.json({ error: "Token invalide" }, { status: 401 })
-    }
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { profil_patient: true, profil_praticien: true },

@@ -1,17 +1,6 @@
+import { requireUser } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
-import { verifyUserJwt } from "@/lib/user-jwt"
 import { z } from "zod"
-
-async function authenticate(req: Request) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null
-  if (!token) return null
-  const payload = await verifyUserJwt(token)
-  if (!payload) return null
-  const userId = parseInt(payload.sub)
-  if (!userId || isNaN(userId)) return null
-  return userId
-}
 
 async function getPraticienByUserId(userId: number) {
   return prisma.praticien.findUnique({ where: { userId } })
@@ -27,8 +16,8 @@ const suiviInclude = {
 }
 
 export async function GET(req: Request) {
-  const userId = await authenticate(req)
-  if (!userId) return Response.json({ error: "Token manquant ou invalide" }, { status: 401 })
+  const { userId, error: authError } = await requireUser(req)
+  if (authError) return authError
 
   try {
     const url = new URL(req.url)
@@ -84,8 +73,8 @@ const createSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const userId = await authenticate(req)
-  if (!userId) return Response.json({ error: "Token manquant ou invalide" }, { status: 401 })
+  const { userId, error: authError } = await requireUser(req)
+  if (authError) return authError
 
   try {
     const praticien = await getPraticienByUserId(userId)
@@ -130,8 +119,8 @@ const updateSchema = z.object({
 })
 
 export async function PUT(req: Request) {
-  const userId = await authenticate(req)
-  if (!userId) return Response.json({ error: "Token manquant ou invalide" }, { status: 401 })
+  const { userId, error: authError } = await requireUser(req)
+  if (authError) return authError
 
   try {
     const body = await req.json()

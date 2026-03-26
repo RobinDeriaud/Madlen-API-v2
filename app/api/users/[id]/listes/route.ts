@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, parseId } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
@@ -22,12 +22,11 @@ async function getOrCreatePatientId(userId: number): Promise<number | null> {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id } = await params
-  const userId = parseInt(id)
-  if (isNaN(userId)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id: userId, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   try {
     const patientId = await getOrCreatePatientId(userId)
@@ -49,12 +48,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id } = await params
-  const userId = parseInt(id)
-  if (isNaN(userId)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id: userId, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   const body = await req.json()
   const parsed = createListeSchema.safeParse(body)

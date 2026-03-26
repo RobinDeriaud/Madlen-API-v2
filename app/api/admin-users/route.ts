@@ -1,13 +1,11 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, parseBody, handlePrismaError } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
-import { createAdminUserSchema, zodFieldError } from "@/lib/validate"
+import { BCRYPT_ROUNDS, createAdminUserSchema, zodFieldError } from "@/lib/validate"
 import bcrypt from "bcryptjs"
 
 export async function GET() {
-  const session = await auth()
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const { error } = await requireAdmin()
+  if (error) return error
 
   try {
     const users = await prisma.adminUser.findMany({
@@ -21,23 +19,17 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const { error: authError } = await requireAdmin()
+  if (authError) return authError
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 })
-  }
+  const { body, error: bodyError } = await parseBody(req)
+  if (bodyError) return bodyError
 
   const parsed = createAdminUserSchema.safeParse(body)
   if (!parsed.success) return zodFieldError(parsed.error)
 
   const { email, password, role, notifications } = parsed.data
-  const passwordHash = await bcrypt.hash(password, 12)
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
 
   try {
     const user = await prisma.adminUser.create({
@@ -46,9 +38,6 @@ export async function POST(req: Request) {
     })
     return Response.json(user, { status: 201 })
   } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === "P2002") {
-      return Response.json({ error: "Cet email est déjà utilisé", fields: { email: "Cet email est déjà utilisé" } }, { status: 409 })
-    }
-    return Response.json({ error: "Internal server error" }, { status: 500 })
+    return handlePrismaError(err, { P2002: "Cet email est déjà utilisé" })
   }
 }

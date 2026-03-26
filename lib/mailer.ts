@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer"
 import fs from "fs"
 import path from "path"
+import { MACRO_CONFIG } from "@/lib/macro"
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -83,15 +84,7 @@ export async function sendEmailChangeEmail(to: string, confirmUrl: string, newEm
   })
 }
 
-const MACRO_COLORS: Record<string, { label: string; bg: string; border: string; text: string }> = {
-  AJUSTEMENT_100:         { label: "Ajustement",         bg: "#7A8C28", border: "#636F20", text: "#ffffff" },
-  HYGIENE_PHONATOIRE_200: { label: "Hygiène phonatoire", bg: "#C0D060", border: "#A4B448", text: "#333333" },
-  PRAXIES_300:            { label: "Praxies",            bg: "#DCE878", border: "#C4D060", text: "#444444" },
-  RENDEMENT_VOCAL_400:    { label: "Rendement vocal",    bg: "#C87860", border: "#AA6048", text: "#ffffff" },
-  FLEXIBILITE_VOCALE_500: { label: "Flexibilité vocale", bg: "#E8AA90", border: "#CC9070", text: "#333333" },
-  INTELLIGIBILITE_600:    { label: "Intelligibilité",    bg: "#7890A0", border: "#607888", text: "#ffffff" },
-  FLUENCE_700:            { label: "Fluence",            bg: "#A0B4C0", border: "#889CA8", text: "#333333" },
-}
+// Réutilise MACRO_CONFIG de lib/macro.tsx (source unique pour les couleurs macro)
 
 function formatDateFR(date: Date | null): string {
   if (!date) return "—"
@@ -119,7 +112,7 @@ export async function sendListeActivatedEmail(
   // Générer les sections HTML par macro
   const sections: string[] = []
   for (const [macroKey, noms] of grouped) {
-    const config = MACRO_COLORS[macroKey]
+    const config = MACRO_CONFIG[macroKey]
     const label = config?.label ?? macroKey
     const bg = config?.bg ?? "#9CA3AF"
     const border = config?.border ?? "#6B7280"
@@ -151,7 +144,7 @@ export async function sendListeActivatedEmail(
   // Version texte
   const textGroups: string[] = []
   for (const [macroKey, noms] of grouped) {
-    const label = MACRO_COLORS[macroKey]?.label ?? macroKey
+    const label = MACRO_CONFIG[macroKey]?.label ?? macroKey
     textGroups.push(`[${label}]\n${noms.map((n) => `  - ${n}`).join("\n")}`)
   }
   const text = `Nouvelle liste d'exercices disponible\n\nBonjour ${patientNom},\n\nVotre praticien vous a attribué une nouvelle liste d'exercices sur MADLEN :\n\n${listeNom} — ${formatDateFR(listeDate)}\n\n${textGroups.join("\n\n")}\n\nConnectez-vous à l'application pour commencer vos exercices.\n\n© 2025 MADLEN - AMS-Logophonie`

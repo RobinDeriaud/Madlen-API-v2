@@ -1,6 +1,7 @@
-import { verifyUserJwt } from "@/lib/user-jwt"
+import { requireUser } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { stripe } from "@/lib/stripe"
+import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
 
 const checkoutSchema = z.object({
@@ -10,23 +11,12 @@ const checkoutSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null
-
-  if (!token) {
-    return Response.json({ error: "Token manquant" }, { status: 401 })
-  }
-
-  const payload = await verifyUserJwt(token)
-  if (!payload) {
-    return Response.json({ error: "Token invalide ou expiré" }, { status: 401 })
-  }
+  const { userId, error } = await requireUser(req)
+  if (error) return error
 
   const body = await req.json()
   const parsed = checkoutSchema.safeParse(body)
-  if (!parsed.success) {
-    return Response.json({ error: "Données invalides" }, { status: 400 })
-  }
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   const { successUrl, cancelUrl } = parsed.data
   const licensePriceId = parsed.data.licensePriceId ?? process.env.STRIPE_PRICE_ID
@@ -40,11 +30,6 @@ export async function POST(req: Request) {
   }
 
   try {
-    const userId = parseInt(payload.sub)
-    if (!userId || isNaN(userId)) {
-      return Response.json({ error: "Token invalide" }, { status: 401 })
-    }
-
     const user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
       return Response.json({ error: "Utilisateur introuvable" }, { status: 404 })

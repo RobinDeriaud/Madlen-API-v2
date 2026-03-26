@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { sendConfirmationEmail } from "@/lib/mailer"
+import { normalizeUser } from "@/lib/user-jwt"
+import { BCRYPT_ROUNDS } from "@/lib/validate"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import { z } from "zod"
@@ -22,7 +24,7 @@ export async function POST(req: Request) {
   }
 
   const { password, ...rest } = parsed.data
-  const passwordHash = await bcrypt.hash(password, 10)
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
   const emailConfirmToken = crypto.randomBytes(32).toString("hex")
   const emailConfirmExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000)
 
@@ -47,17 +49,16 @@ export async function POST(req: Request) {
       console.error("[email] Confirmation send failed:", err)
     )
 
+    // Re-fetch avec profils pour normalizeUser
+    const fullUser = await prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      include: { profil_patient: true, profil_praticien: true },
+    })
+
     return Response.json(
       {
         jwt: null,
-        user: {
-          id: user.id,
-          email: user.email,
-          nom: user.nom,
-          prenom: user.prenom,
-          user_type: user.user_type,
-          confirmed: user.confirmed,
-        },
+        user: normalizeUser(fullUser),
         emailConfirmationRequired: true,
       },
       { status: 201 }

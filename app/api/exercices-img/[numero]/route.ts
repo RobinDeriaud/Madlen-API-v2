@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin } from "@/lib/api-helpers"
 import { readFile } from "fs/promises"
 import path from "path"
 
@@ -6,10 +6,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ numero: string }> }
 ) {
-  const session = await auth()
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const { error } = await requireAdmin()
+  if (error) return error
 
   const { numero } = await params
 

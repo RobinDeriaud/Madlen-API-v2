@@ -138,6 +138,11 @@ model User {
   kitInstalled       Boolean   @default(false) @map("kit_installed")
   kitPurchasedAt     DateTime? @map("kit_purchased_at") @db.Timestamptz
 
+  licenceActive      Boolean   @default(false) @map("licence_active")
+  licenceProductName String?   @map("licence_product_name")
+  licencePurchasedAt DateTime? @map("licence_purchased_at") @db.Timestamptz
+  licenceExpiresAt   DateTime? @map("licence_expires_at") @db.Timestamptz
+
   profil_patient    Patient?
   profil_praticien  Praticien?
   @@map("users")

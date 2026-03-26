@@ -14,6 +14,9 @@ type User = {
   prenom: string | null
   user_type: UserType
   confirmed: boolean
+  licenceActive: boolean
+  kitInstalled: boolean
+  kitPurchasedAt: string | null
 }
 
 type UserTypeConfig = {
@@ -84,6 +87,9 @@ export default function UsersPage() {
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState<UserType | "ALL">("ALL")
+  const [kitFilter, setKitFilter] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
 
   // Refetch quand la page redevient visible (retour depuis une page détail)
   useEffect(() => {
@@ -91,6 +97,33 @@ export default function UsersPage() {
     window.addEventListener("focus", onFocus)
     return () => window.removeEventListener("focus", onFocus)
   }, [refetch])
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch("/api/kit-installations", { method: "POST" })
+      const data = await res.json()
+      if (res.ok) {
+        if (data.synced > 0) {
+          const parts: string[] = []
+          if (data.details?.licences) parts.push(`${data.details.licences} licence${data.details.licences > 1 ? "s" : ""}`)
+          if (data.details?.kits) parts.push(`${data.details.kits} kit${data.details.kits > 1 ? "s" : ""}`)
+          setSyncResult(`${data.synced} user${data.synced > 1 ? "s" : ""} synchronisé${data.synced > 1 ? "s" : ""} (${parts.join(", ")})`)
+          refetch()
+        } else {
+          setSyncResult("Tout est à jour")
+        }
+      } else {
+        setSyncResult("Erreur de synchronisation")
+      }
+    } catch {
+      setSyncResult("Erreur de synchronisation")
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncResult(null), 4000)
+    }
+  }
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -116,6 +149,7 @@ export default function UsersPage() {
 
   const filtered = users
     .filter((u) => typeFilter === "ALL" || u.user_type === typeFilter)
+    .filter((u) => !kitFilter || (u.kitPurchasedAt !== null && !u.kitInstalled))
     .filter((u) => {
       const q = search.trim().toLowerCase()
       if (!q) return true
@@ -126,23 +160,35 @@ export default function UsersPage() {
       )
     })
   const rows = sorted(filtered, sortKey, sortDir)
-  const isFiltering = search.trim().length > 0 || typeFilter !== "ALL"
+  const isFiltering = search.trim().length > 0 || typeFilter !== "ALL" || kitFilter
 
   return (
     <div>
       {/* En-tête */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Utilisateurs</h1>
-        <Link
-          href="/dashboard/users/nouveau"
-          className="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-700"
-        >
-          + Nouvel utilisateur
-        </Link>
+        <div className="flex items-center gap-3">
+          {syncResult && (
+            <span className="text-xs text-gray-500">{syncResult}</span>
+          )}
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200 disabled:opacity-50 border border-gray-200"
+          >
+            {syncing ? "Synchronisation…" : "Synchroniser Stripe"}
+          </button>
+          <Link
+            href="/dashboard/users/nouveau"
+            className="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-700"
+          >
+            + Nouvel utilisateur
+          </Link>
+        </div>
       </div>
 
-      {/* Filtres par type */}
-      <div className="flex gap-2 mb-4">
+      {/* Filtres */}
+      <div className="flex gap-2 mb-4 flex-wrap">
         {(["ALL", "PATIENT", "PRATICIEN"] as const).map((t) => (
           <button
             key={t}
@@ -156,6 +202,17 @@ export default function UsersPage() {
             {t === "ALL" ? "Tous" : t === "PATIENT" ? "Patients" : "Praticiens"}
           </button>
         ))}
+        <span className="border-l border-gray-200 mx-1" />
+        <button
+          onClick={() => setKitFilter(!kitFilter)}
+          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+            kitFilter
+              ? "bg-amber-600 text-white border-amber-600"
+              : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+          }`}
+        >
+          Kit à installer
+        </button>
       </div>
 
       {/* Barre de recherche + compteur */}
@@ -206,6 +263,12 @@ export default function UsersPage() {
               Rôle
               <SortIcon active={sortKey === "user_type"} dir={sortDir} />
             </th>
+            <th className="text-left py-3 pr-4 font-semibold w-24 text-gray-500">
+              Licence
+            </th>
+            <th className="text-left py-3 pr-4 font-semibold w-28 text-gray-500">
+              Kit
+            </th>
             <th className="text-left py-3 pr-3 font-semibold w-24 text-gray-500">
               Statut
             </th>
@@ -216,7 +279,7 @@ export default function UsersPage() {
             <tr
               key={u.id}
               className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors group"
-              onClick={() => router.push(`/dashboard/users/${u.id}`)}
+              onClick={() => router.push(`/dashboard/users/${u.id}${kitFilter ? "?tab=licence" : ""}`)}
             >
               <td className="py-3 pl-3 pr-4 text-gray-800 group-hover:text-gray-900 font-medium">
                 {u.nom ?? <span className="text-gray-300">—</span>}
@@ -229,6 +292,32 @@ export default function UsersPage() {
               </td>
               <td className="py-3 pr-4">
                 <UserTypeBadge type={u.user_type} />
+              </td>
+              <td className="py-3 pr-4">
+                {u.licenceActive ? (
+                  <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium border bg-green-50 border-green-300 text-green-700">
+                    Active
+                  </span>
+                ) : (
+                  <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium border bg-gray-50 border-gray-200 text-gray-400">
+                    Inactive
+                  </span>
+                )}
+              </td>
+              <td className="py-3 pr-4">
+                {u.kitPurchasedAt !== null ? (
+                  u.kitInstalled ? (
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium border bg-green-50 border-green-300 text-green-700">
+                      Installé
+                    </span>
+                  ) : (
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium border bg-amber-50 border-amber-300 text-amber-700">
+                      À installer
+                    </span>
+                  )
+                ) : (
+                  <span className="text-gray-300">—</span>
+                )}
               </td>
               <td className="py-3 pr-3">
                 {u.confirmed ? (

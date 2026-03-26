@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, handlePrismaError } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
@@ -20,8 +20,8 @@ const createSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
   const body = await req.json()
   const parsed = createSchema.safeParse(body)
@@ -33,16 +33,13 @@ export async function POST(req: Request) {
     })
     return Response.json(exercice, { status: 201 })
   } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === "P2002") {
-      return Response.json({ error: "Ce numéro est déjà utilisé" }, { status: 409 })
-    }
-    return Response.json({ error: "Internal server error" }, { status: 500 })
+    return handlePrismaError(err, { P2002: "Ce numéro est déjà utilisé" })
   }
 }
 
 export async function GET() {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
   try {
     const exercices = await prisma.exercice.findMany({

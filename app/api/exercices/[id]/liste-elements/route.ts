@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, parseId } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
@@ -15,12 +15,11 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id: rawId } = await params
-  const id = parseInt(rawId)
-  if (isNaN(id)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   try {
     const elements = await prisma.listeElement.findMany({
@@ -37,12 +36,11 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id: rawId } = await params
-  const id = parseInt(rawId)
-  if (isNaN(id)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   const body = await req.json()
   const parsed = batchSchema.safeParse(body)

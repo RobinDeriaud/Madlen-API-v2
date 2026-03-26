@@ -159,5 +159,9 @@ export function normalizeUser(user: UserWithProfiles) {
     profil_praticien: user.profil_praticien ?? null,
     kit_installed: user.kitInstalled,
     kit_purchased_at: user.kitPurchasedAt?.toISOString() ?? null,
+    licence_active: user.licenceActive,
+    licence_product_name: user.licenceProductName ?? null,
+    licence_purchased_at: user.licencePurchasedAt?.toISOString() ?? null,
+    licence_expires_at: user.licenceExpiresAt?.toISOString() ?? null,
   }
 }

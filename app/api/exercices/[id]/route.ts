@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, parseId, handlePrismaError } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { zodFieldError } from "@/lib/validate"
 import { z } from "zod"
@@ -30,12 +30,11 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id: rawId } = await params
-  const id = parseInt(rawId)
-  if (isNaN(id)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   try {
     const exercice = await prisma.exercice.findUnique({
@@ -53,12 +52,11 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id: rawId } = await params
-  const id = parseInt(rawId)
-  if (isNaN(id)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   const body = await req.json()
   const parsed = updateSchema.safeParse(body)
@@ -75,13 +73,7 @@ export async function PUT(
     const updated = await prisma.exercice.update({ where: { id }, data })
     return Response.json(updated)
   } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === "P2002") {
-      return Response.json({ error: "Ce numéro est déjà utilisé" }, { status: 409 })
-    }
-    if (err instanceof Error && "code" in err && err.code === "P2025") {
-      return Response.json({ error: "Not found" }, { status: 404 })
-    }
-    return Response.json({ error: "Internal server error" }, { status: 500 })
+    return handlePrismaError(err, { P2002: "Ce numéro est déjà utilisé" })
   }
 }
 
@@ -89,12 +81,11 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id: rawId } = await params
-  const id = parseInt(rawId)
-  if (isNaN(id)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   const body = await req.json()
   const parsed = z.object({ published: z.boolean() }).safeParse(body)
@@ -107,9 +98,6 @@ export async function PATCH(
     })
     return Response.json(updated)
   } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === "P2025") {
-      return Response.json({ error: "Not found" }, { status: 404 })
-    }
-    return Response.json({ error: "Internal server error" }, { status: 500 })
+    return handlePrismaError(err)
   }
 }

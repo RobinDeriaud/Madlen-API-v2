@@ -1,5 +1,5 @@
+import { requireUser } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
-import { verifyUserJwt } from "@/lib/user-jwt"
 import { sendInvitationEmail } from "@/lib/mailer"
 import { z } from "zod"
 
@@ -8,16 +8,10 @@ const schema = z.object({
 })
 
 export async function POST(req: Request) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null
-  if (!token) return Response.json({ error: "Token manquant" }, { status: 401 })
-
-  const payload = await verifyUserJwt(token)
-  if (!payload) return Response.json({ error: "Token invalide ou expiré" }, { status: 401 })
+  const { userId, error } = await requireUser(req)
+  if (error) return error
 
   try {
-    const userId = parseInt(payload.sub)
-    if (!userId || isNaN(userId)) return Response.json({ error: "Token invalide" }, { status: 401 })
 
     const praticien = await prisma.praticien.findUnique({
       where: { userId },
@@ -30,7 +24,7 @@ export async function POST(req: Request) {
     if (!parsed.success) return Response.json({ error: "Email invalide" }, { status: 400 })
 
     const praticienNom = [praticien.user?.prenom, praticien.user?.nom].filter(Boolean).join(" ") || "Votre praticien"
-    const appUrl = process.env.NEXTAUTH_URL ?? "https://madlen.app"
+    const appUrl = process.env.APP_URL ?? "https://madlen.app"
     const registerUrl = `${appUrl}/inscription`
 
     sendInvitationEmail(parsed.data.patientEmail, registerUrl, praticienNom).catch(console.error)

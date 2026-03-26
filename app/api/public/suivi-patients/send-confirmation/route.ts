@@ -1,5 +1,6 @@
+import { requireUser } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
-import { verifyUserJwt, signSuiviConfirmJwt } from "@/lib/user-jwt"
+import { signSuiviConfirmJwt } from "@/lib/user-jwt"
 import { sendPraticienConfirmationEmail } from "@/lib/mailer"
 import { z } from "zod"
 
@@ -8,16 +9,10 @@ const schema = z.object({
 })
 
 export async function POST(req: Request) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null
-  if (!token) return Response.json({ error: "Token manquant" }, { status: 401 })
-
-  const payload = await verifyUserJwt(token)
-  if (!payload) return Response.json({ error: "Token invalide ou expiré" }, { status: 401 })
+  const { userId, error } = await requireUser(req)
+  if (error) return error
 
   try {
-    const userId = parseInt(payload.sub)
-    if (!userId || isNaN(userId)) return Response.json({ error: "Token invalide" }, { status: 401 })
 
     const body = await req.json()
     const parsed = schema.safeParse(body)
@@ -45,7 +40,7 @@ export async function POST(req: Request) {
       praticienId: suivi.praticienId,
     })
 
-    const appUrl = process.env.NEXTAUTH_URL ?? "https://madlen.app"
+    const appUrl = process.env.APP_URL ?? "https://madlen.app"
     const confirmUrl = `${appUrl}/confirmer-suivi?token=${confirmToken}`
 
     sendPraticienConfirmationEmail(patientEmail, confirmUrl, praticienNom).catch(console.error)

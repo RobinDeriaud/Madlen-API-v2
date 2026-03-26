@@ -1,7 +1,7 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, handlePrismaError } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { sendConfirmationEmail } from "@/lib/mailer"
-import { zodFieldError } from "@/lib/validate"
+import { BCRYPT_ROUNDS, zodFieldError } from "@/lib/validate"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import { z } from "zod"
@@ -19,8 +19,8 @@ const createSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
   const body = await req.json()
   const parsed = createSchema.safeParse(body)
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
   // Si pas de mot de passe fourni, placeholder non-matchable par bcrypt
   const passwordHash = password
-    ? await bcrypt.hash(password, 10)
+    ? await bcrypt.hash(password, BCRYPT_ROUNDS)
     : "!SETUP_PENDING"
 
   try {
@@ -67,17 +67,13 @@ export async function POST(req: Request) {
 
     return Response.json({ id: user.id }, { status: 201 })
   } catch (err) {
-    console.error("[POST /api/users]", err)
-    if (err instanceof Error && "code" in err && err.code === "P2002") {
-      return Response.json({ error: "Email déjà utilisé" }, { status: 409 })
-    }
-    return Response.json({ error: "Internal server error" }, { status: 500 })
+    return handlePrismaError(err, { P2002: "Email déjà utilisé" })
   }
 }
 
 export async function GET(req: Request) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
   const { searchParams } = new URL(req.url)
   const q = searchParams.get("q")?.trim() ?? ""
@@ -104,6 +100,9 @@ export async function GET(req: Request) {
         prenom: true,
         user_type: true,
         confirmed: true,
+        licenceActive: true,
+        kitInstalled: true,
+        kitPurchasedAt: true,
         profil_patient: { select: { id: true, praticienId: true } },
       },
       orderBy: [{ nom: "asc" }, { prenom: "asc" }],

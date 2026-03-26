@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, parseId } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { readAudioFile } from "@/lib/audio-storage"
 
@@ -6,12 +6,11 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return new Response("Unauthorized", { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id: rawId } = await params
-  const id = parseInt(rawId)
-  if (isNaN(id)) return new Response("Not found", { status: 404 })
+  const { id, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   const record = await prisma.audioFile.findUnique({ where: { id } })
   if (!record) return new Response("Not found", { status: 404 })

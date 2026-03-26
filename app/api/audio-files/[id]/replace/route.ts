@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, parseId } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import path from "path"
 import {
@@ -12,12 +12,11 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id: rawId } = await params
-  const id = parseInt(rawId)
-  if (isNaN(id)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const { id, error: idError } = parseId((await params).id)
+  if (idError) return idError
 
   const record = await prisma.audioFile.findUnique({ where: { id } })
   if (!record) return Response.json({ error: "Not found" }, { status: 404 })

@@ -1,6 +1,7 @@
+import { requireUser } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
-import { verifyUserJwt } from "@/lib/user-jwt"
 import { sendEmailChangeEmail } from "@/lib/mailer"
+import { zodFieldError } from "@/lib/validate"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import { z } from "zod"
@@ -11,26 +12,17 @@ const schema = z.object({
 })
 
 export async function POST(req: Request) {
-  const auth = req.headers.get("authorization")
-  if (!auth?.startsWith("Bearer ")) {
-    return Response.json({ error: "Token manquant" }, { status: 401 })
-  }
-
-  const payload = await verifyUserJwt(auth.slice(7))
-  if (!payload) {
-    return Response.json({ error: "Token invalide ou expiré" }, { status: 401 })
-  }
+  const { userId, error } = await requireUser(req)
+  if (error) return error
 
   const body = await req.json()
   const parsed = schema.safeParse(body)
-  if (!parsed.success) {
-    return Response.json({ error: "Données invalides" }, { status: 400 })
-  }
+  if (!parsed.success) return zodFieldError(parsed.error)
 
   const { newEmail, password } = parsed.data
 
   try {
-    const user = await prisma.user.findUnique({ where: { id: Number(payload.sub) } })
+    const user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
       return Response.json({ error: "Utilisateur introuvable" }, { status: 404 })
     }

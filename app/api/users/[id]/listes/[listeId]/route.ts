@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { requireAdmin, parseId, handlePrismaError } from "@/lib/api-helpers"
 import { prisma } from "@/lib/prisma"
 import { sendListeActivatedEmail } from "@/lib/mailer"
 import { zodFieldError } from "@/lib/validate"
@@ -16,13 +16,14 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string; listeId: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id, listeId } = await params
-  const userId = parseInt(id)
-  const lId = parseInt(listeId)
-  if (isNaN(userId) || isNaN(lId)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const p = await params
+  const { id: userId, error: idError } = parseId(p.id)
+  if (idError) return idError
+  const { id: lId, error: lError } = parseId(p.listeId)
+  if (lError) return lError
 
   try {
     const user = await prisma.user.findUnique({
@@ -49,13 +50,14 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string; listeId: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id, listeId } = await params
-  const userId = parseInt(id)
-  const lId = parseInt(listeId)
-  if (isNaN(userId) || isNaN(lId)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const p = await params
+  const { id: userId, error: idError } = parseId(p.id)
+  if (idError) return idError
+  const { id: lId, error: lError } = parseId(p.listeId)
+  if (lError) return lError
 
   const body = await req.json()
   const parsed = updateListeSchema.safeParse(body)
@@ -111,10 +113,7 @@ export async function PUT(
 
     return Response.json({ id: liste.id })
   } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === "P2025") {
-      return Response.json({ error: "Liste introuvable" }, { status: 404 })
-    }
-    return Response.json({ error: "Internal server error" }, { status: 500 })
+    return handlePrismaError(err, { P2025: "Liste introuvable" })
   }
 }
 
@@ -122,13 +121,14 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string; listeId: string }> }
 ) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { error } = await requireAdmin()
+  if (error) return error
 
-  const { id, listeId } = await params
-  const userId = parseInt(id)
-  const lId = parseInt(listeId)
-  if (isNaN(userId) || isNaN(lId)) return Response.json({ error: "Invalid id" }, { status: 400 })
+  const p = await params
+  const { id: userId, error: idError } = parseId(p.id)
+  if (idError) return idError
+  const { id: lId, error: lError } = parseId(p.listeId)
+  if (lError) return lError
 
   try {
     const user = await prisma.user.findUnique({

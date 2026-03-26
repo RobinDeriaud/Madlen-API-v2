@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { verifyPatientSetupJwt, signUserJwt } from "@/lib/user-jwt"
+import { BCRYPT_ROUNDS } from "@/lib/validate"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 
@@ -112,7 +113,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Ce compte est déjà configuré" }, { status: 409 })
     }
 
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
 
     // Mettre à jour le user : mot de passe, nom, prénom, confirmed
     await prisma.user.update({
